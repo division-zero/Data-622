@@ -1,8 +1,476 @@
 ---
 title: "Data 622 Assignment 1"
 author: "Keith DeNivo"
-format: html
+format: pdf
 editor: visual
 ---
 
 ## 
+
+```{r}
+#| echo: false
+#| include: false
+
+library(MASS)
+library(broom)
+library(marginaleffects)
+library(cowplot)
+library(psych)
+library(tidyverse)
+library(fpp3)
+library(randomForest)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caTools)
+library(gbm)
+library(mlbench)
+library(ipred)
+library(class)
+library(kernlab)
+library(partykit)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(corrplot)
+library(doParallel)
+library(writexl)
+library(rcompanion)
+library(dplyr)
+library(DescTools)
+library(DataExplorer)
+library(skimr)
+library(GGally)
+library(ggrepel)
+```
+
+## Read in Data
+
+```{r}
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional-full.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+fulldata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(fulldata)
+# Clean up the temporary file
+unlink(temp_file)
+
+
+```
+
+```{r}
+
+#smaller data set for training or testing
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+partdata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(partdata)
+# Clean up the temporary file
+unlink(temp_file)
+```
+
+```{r}
+print(colSums(is.na(fulldata))) 
+```
+
+data does not have missing values.
+
+Are the features (columns) of your data correlated?
+
+```{r}
+numeric_df <- fulldata[sapply(fulldata, is.numeric)]
+cor_matrix <- cor(numeric_df, use = "complete.obs")
+corrplot(cor_matrix, method = "color", tl.cex = 0.8)
+
+cor_df <- as.data.frame(as.table(cor_matrix)) #put the correlations into a dataframe
+
+
+names(cor_df) <- c("feature_1", "feature_2", "correlation") #name the columns of the correlation dataframe
+
+
+cor_df <- cor_df[cor_df$feature_1 != cor_df$feature_2, ] #remove self correlations
+
+
+cor_df <- cor_df[!duplicated(t(apply(cor_df[, 1:2], 1, sort))), ]
+#remove the redundant pairs
+
+
+cor_df <- cor_df[order(abs(cor_df$correlation), decreasing = TRUE), ]
+# sort by absolute correlation
+
+
+head(cor_df, 10)
+
+```
+
+Most correlated numeric features:
+
+Positive Correlation:
+
+consumer price index, employment variation rate
+
+number of employees, euribor 3 month rate (interest rates)
+
+number of employees employment variation rate
+
+negative:
+
+previous(number of contacts performed before this campaign and for this client) pdays (number of days that passed by after the client was last contacted from a previous campaign)
+
+previous, number of employees
+
+```{r}
+
+```
+
+```{r}
+
+
+cat_cols <- sapply(fulldata, function(x) !is.numeric(x))
+head(cat_cols)
+#cat_cols <- names(cat_cols)
+head(cat_cols)
+
+
+catdata <- fulldata[, cat_cols]
+head(catdata)
+combos <- combn(names(catdata), 2, simplify = FALSE)
+
+#  Cramers V for comparing features
+cramer_v <- lapply(combos, function(x) {
+  v <- cramerV(catdata[[x[1]]], catdata[[x[2]]], bias.correct = TRUE)
+  data.frame(var1 = x[1], var2 = x[2], cramers_v = v)
+}) |>  bind_rows()
+
+
+cramer_v <- cramer_v[order(abs(cramer_v$cramers_v), decreasing = TRUE), ]
+
+head(cramer_v, 10)
+
+
+
+```
+
+categorical variables:
+
+housing and loan, contact and month, job and education highly correlated
+
+term deposit somewhat correlated with poutcome, and month
+
+What is the overall distribution of each variable?
+
+## Distribution, central tendency and spread
+
+```{r}
+
+
+
+
+plot_intro(fulldata)         # summary info
+plot_density(fulldata)       # numeric distributions
+plot_bar(fulldata)           # categorical distributions
+
+
+summary(fulldata)
+describe(numeric_df)
+skim(fulldata)
+```
+
+Are there any outliers present?
+
+```{r}
+
+for (col in names(numeric_df)) {
+  p <- ggplot(numeric_df, aes(y = .data[[col]])) +
+    geom_boxplot(fill = "steelblue", outlier.color = "red") +
+    labs(title = paste("Boxplot of", col), y = col) +
+    theme_minimal()
+  
+  print(p)  # prints each plot in the viewer
+}
+
+# Convert to long format for ggplot
+numeric_long <- numeric_df  |> dplyr::select(-nr.employed, -duration,-pdays) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+ggplot(numeric_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+```
+
+```{r}
+
+numpartdata <- partdata |> dplyr::select(where(is.numeric))
+firsthalf <- numpartdata[ ,1:5]
+secondhalf <- numpartdata[ ,6:10]
+
+ggpairs(numpartdata)
+ggpairs(firsthalf)
+ggpairs(secondhalf)
+```
+
+```{r}
+unknown_counts <- sapply(fulldata, function(x) sum(x == "unknown", na.rm = TRUE))
+
+# View the result
+unknown_counts
+nrow(fulldata)
+```
+
+```{r}
+
+
+pca_fit <-  numeric_df |>  
+  dplyr::select(where(is.numeric))  |>   prcomp(scale = TRUE)
+
+ kmodel <- pca_fit|> 
+    augment(numeric_df) |> 
+  dplyr::select(.fittedPC1:.fittedPC10) |> 
+  kmeans(centers=3,nstart = 10) 
+
+user_clusters = kmodel |> augment(numeric_df)
+```
+
+```{r}
+
+arrow_style <- arrow(
+  angle = 20, length = grid::unit(8, "pt"),
+  ends = "first", type = "closed"
+)
+pca_fit |> 
+  tidy(matrix = "rotation")  |> 
+  pivot_wider(
+    names_from = "PC", values_from = "value",
+    names_prefix = "PC"
+  )  |> 
+  ggplot(aes(PC1, PC2)) +
+  geom_segment(
+    xend = 0, yend = 0,
+    arrow = arrow_style
+  ) +
+  geom_text_repel(aes(label = column), hjust = 1,vjust=1) +
+  xlim(-0.25, 0.5) + ylim(-0.25, 0.3) + 
+  coord_fixed() +
+  theme_minimal(base_size =16)+
+  labs(title = "Contributing Purchases")
+```
+
+```{r}
+ggplot(fulldata, aes(x = factor(fulldata$y), y = age)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = duration)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = campaign)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = pdays)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = pdays)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = previous)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = emp.var.rate)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = cons.price.idx)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = cons.conf.idx)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = euribor3m)) +
+  geom_boxplot()
+
+ggplot(fulldata, aes(x = factor(fulldata$y), y = nr.employed)) +
+  geom_boxplot()
+
+#emp.var.rate: employment variation rate - quarterly indicator (numeric) 17 - cons.price.idx: consumer price index - monthly indicator (numeric)18 - cons.conf.idx: consumer confidence index - monthly indicator (numeric)19 - euribor3m: euribor 3 month rate - daily indicator (numeric) 20 - nr.employed: number of employees - quarterly indicator (numeric)
+```
+
+```{r}
+fulldata$term_deposit <- ifelse(fulldata$y == "yes", 1, 0)
+lmodel <- glm(
+  term_deposit ~ age + job + marital + education + default + housing + loan +
+       contact + month + day_of_week +
+       campaign + pdays + previous + poutcome +
+       emp.var.rate + cons.price.idx + cons.conf.idx +
+       euribor3m + nr.employed,
+  data = fulldata,
+  family = binomial
+)
+
+summary(lmodel)
+```
+
+```{r}
+
+set.seed(42)
+fulldata$term_deposit_factor <- factor(fulldata$term_deposit, levels = c(0, 1))
+modeldata <- fulldata |> dplyr::select(-y, -term_deposit, -duration)
+train_index <- sample(seq_len(nrow(modeldata)), size = 0.7 * nrow(modeldata))
+train_data <- modeldata[train_index, ]
+test_data  <- modeldata[-train_index, ]
+
+
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 20,
+    maxdepth = 30
+  )
+)
+
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+pred_prob <- predict(tree_model, test_data, type = "prob")
+
+table(Predicted = pred_class, Actual = test_data$term_deposit_factor)
+
+mean(pred_class == test_data$term_deposit_factor)
+
+
+
+
+
+```
+
+```{r}
+
+lmodel <- glm(
+  term_deposit_factor ~ age + job + marital + education + default + housing + loan +
+       contact + month + day_of_week +
+       campaign + pdays + previous + poutcome +
+       emp.var.rate + cons.price.idx + cons.conf.idx +
+       euribor3m + nr.employed,
+  data = modeldata,
+  family = binomial
+)
+
+pred_prob <- predict(lmodel, test_data, type = "response")
+
+pred_class <- ifelse(pred_prob >= 0.5, 1, 0)
+pred_class <- factor(pred_class, levels = c(0, 1))
+
+actual <- factor(test_data$term_deposit_factor, levels = c(0, 1))
+
+conf_mat <- table(
+  Predicted = pred_class,
+  Actual = actual
+)
+
+conf_mat
+
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat)
+accuracy
+
+
+
+confusionMatrix(pred_class, actual, positive = "1")
+
+```
+
+```{r}
+
+
+#QDA model
+
+numeric_vars <- sapply(train_data, is.numeric)
+
+train_qda <- train_data[, numeric_vars | names(train_data) == "term_deposit_factor"]
+test_qda  <- test_data[,  numeric_vars | names(test_data) == "term_deposit_factor"]
+
+qda_model <- qda(
+  term_deposit_factor ~ .,
+  data = train_qda
+)
+
+qda_pred <- predict(qda_model, test_qda)
+
+table(
+  Predicted = qda_pred$class,
+  Actual   = test_qda$term_deposit_factor
+)
+
+mean(qda_pred$class == test_qda$term_deposit_factor)
+
+confusionMatrix(qda_pred$class, actual, positive = "1")
+```
+
+pre processing:
+
+remove contact and duration
+
+contact, default appears to be useless
+
+housing and loan, contact and month, job and education highly correlated
+
+term deposit somewhat correlated with poutcome, and month
+
+term deposit is more correlated with job than education
+
+There are many more no to term deposit than there are yes.
+
+The dataset contains both numeric and categorical features. The numeric features of the data that are most correlated are: employment variation rate, number of employees, euribor 3 month rate (interest rates). Strong negative correlations exist between previous(number of contacts performed before this campaign and for this client) and pdays (number of days that passed by after the client was last contacted from a previous campaign),previous and number of employees. For the categorical features, the most correlated based on Cramer's V are housing and loan, contact and month, job and education.
+
+With the exception of age none of the numeric data are normally distributed. data is either extremely skewed like with campaign or multimodal such as: consumer price index, consumer confidence index, employee variation rate, number employed, euribor3m (interest rates).
+
+The target variable term deposits have significantly more "no's" than "yes'." This will have to be preprocessed to improve model performance. For the categorical data there are more married than single and divorced. A majority have a university degree for their education. about half have housing loans. there appears to be little to none of people who have defaulted on a loan. a majority of the clients do not have a personal loan. They seem to be mostly contacted in the month of may and clients are contacted each day of the week very evenly. There were very few successes from the last campaign, although it looks like a majority was "nonexistent. " This may indicate that this campaign has more clients than before.
+
+Numeric data with outliers include: previous, pdays, campaign, age. There appears to be only one outlier for consumer confidence index.
+
+variables with high correlations tend to have clearer trends.
+
+many features such as age, campaign, pdays and previous have little discernible trends.
+
+There appears to be no missing data, however some features will be more useful than others.
+
+Algorithm selection:
+
+Since the output is binary a logistic model can be implemented by including the relevant features. logistic regression can use both numeric and categorical features. it has low variance when regularization is applied. Works well with limited data. In feature space it puts a linear decision boundary. sensitive to multicollinearity and struggles with complex nonlinear relationships. it assumes independence between features.
+
+QDA requires numeric features and can create nonlinear decision boundaries which can fit the data well if the boundaries are not linear and the classes are very well separated. Sensitive to multicollinearity and outliers. It requires large sample sizes for each class. Low bias with high variance due to the full covariance matrix per class. The features should be normalized before training.
+
+Decision trees can also utilize categorical and numeric features. It can handle nonlinear relationships by using multiple boundaries in feature space. low bias with high variance.
+
+So far without much preprocessing QDA performs the best in terms of predicting yes. I would like to try to optimize logistic regression or a decision tree to hopefully include a useful categorical variable.
+
+With a low amount of data (\~1000) a logisitic regression would be preferred, since it does not require a lot of data to be a decent model.
+
+Data Cleaning:
+
+Dimensions I would remove include: duration due to it not being a predictor, contact (provides no useful information since they are both phone methods), default (not enough data in the yes class for it to be useful). since housing and loan, contact and month, job and education are highly correlated, maybe it would be best to include housing, job and month without the others to reduce features. employment variation rate, number of employees, euribor 3 month rate (interest rates) are also highly correlated. it may be best to pick one or two of those numeric features to reduce the amount of features. QDA should have normalized data before implementation. Logistic regression may require regularization in order to improve predictions.
+
+The training data should have equal amount of data points for no and yes in order to build a better classifier that is more sensitive to "yes." A large portion of the data has a classification of "no" the classifier will be bias towards "no" if the original ratio is kept.
+
+In summary the dataset shows highly skewed and multimodal numeric features. There are categorical imbalances as well as correlated features. Logistic regression, QDA and decision trees are potential candidates for modeling the data. Pre processing is needed in order to build a model that can produce a reasonable accuracy.
+
+reference:
+
+Input variables: \# bank client data: 1 - **age** (numeric) 2 - **job : type of job** (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown") 3 - **marital : marital status** (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed) 4 - **education** (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown") 5 - **default: has credit in default**? (categorical: "no","yes","unknown") 6 - **housing: has housing loan**? (categorical: "no","yes","unknown") 7 - **loan: has personal loan**? (categorical: "no","yes","unknown") \# related with the last contact of the current campaign: 8 - **contact: contact communication type** (categorical: "cellular","telephone") 9 - **month: last contact month of year** (categorical: "jan", "feb", "mar", ..., "nov", "dec") 10 - **day_of_week: last contact day of the week** (categorical: "mon","tue","wed","thu","fri") **11 - duration: last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model**. \# other attributes: 12 - **campaign: number of contacts performed during this campaign and for this client** (numeric, includes last contact) 13 - **pdays: number of days that passed by after the client was last contacted from a previous campaign** (numeric; **999 means client was not previously contacted**) 14 - **previous: number of contacts performed before this campaign and for this client (numeric)** 15 - **poutcome: outcome of the previous marketing campaign** (categorical: "failure","nonexistent","success") \# social and economic context attributes 16 - **emp.var.rate: employment variation rate** - quarterly indicator (numeric) 17 - **cons.price.idx: consumer price index** - monthly indicator (numeric)\
+18 - **cons.conf.idx: consumer confidence index** - monthly indicator (numeric)\
+19 - **euribor3m: euribor 3 month rate** - daily indicator (numeric) 20 - **nr.employed: number of employees** - quarterly indicator (numeric)
+
+Output variable (desired target): 21 - y - has the client subscribed a term deposit? (binary: "yes","no")
