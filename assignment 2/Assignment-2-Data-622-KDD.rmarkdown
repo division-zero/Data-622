@@ -1,0 +1,1729 @@
+---
+title: "Data 622 Assignment 1"
+author: "Keith DeNivo"
+format: pdf
+editor: visual
+---
+
+## 
+
+```{r}
+#| echo: false
+#| include: false
+
+library(MASS)
+library(broom)
+library(marginaleffects)
+library(cowplot)
+library(psych)
+library(tidyverse)
+library(fpp3)
+library(randomForest)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caTools)
+library(gbm)
+library(mlbench)
+library(ipred)
+library(class)
+library(kernlab)
+library(partykit)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(corrplot)
+library(doParallel)
+library(writexl)
+library(rcompanion)
+library(dplyr)
+library(DescTools)
+library(DataExplorer)
+library(skimr)
+library(GGally)
+library(ggrepel)
+library(adabag)
+```
+
+## Read in Data
+
+```{r}
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional-full.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+fulldata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(fulldata)
+# Clean up the temporary file
+unlink(temp_file)
+
+
+```
+
+```{r}
+
+#smaller data set for training or testing
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+partdata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(partdata)
+# Clean up the temporary file
+unlink(temp_file)
+```
+
+```{r}
+ 
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+
+
+
+
+
+```
+
+## Basic data info
+
+```{r}
+
+
+
+
+
+
+
+summary(fulldata)
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+```
+
+#converting yes to 1 and no to 0 for binary classification
+
+```{r}
+partdata$term_deposit <- ifelse(partdata$y == "yes", 1, 0)
+partdata$term_deposit_factor <- factor(partdata$term_deposit, levels = c(0, 1))
+
+```
+
+# Base models
+
+## Build a tree model based on full data set
+
+cp complexity parameter default is 0.01
+
+```{r}
+
+
+fulldata$term_deposit <- ifelse(fulldata$y == "yes", 1, 0)
+fulldata$term_deposit_factor <- factor(fulldata$term_deposit, levels = c(0, 1))
+set.seed(42)
+#removing columns/features that are directly related to target variable
+modeldata <- fulldata |> dplyr::select(-y, -term_deposit, -duration)
+#taking the full data set and splitting 0.7:0.3 train:test split.
+train_index <- sample(seq_len(nrow(modeldata)), size = 0.7 * nrow(modeldata))
+train_data <- modeldata[train_index, ]
+test_data  <- modeldata[-train_index, ]
+
+#train on full data set without missing features
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 20,
+    maxdepth = 30
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+
+
+
+
+table(Predicted = pred_class, Actual = test_data$term_deposit_factor)
+
+mean(pred_class == test_data$term_deposit_factor)
+
+
+
+
+confusionMatrix(pred_class, test_data$term_deposit_factor)
+
+
+```
+
+```         
+Accuracy : 0.8992
+```
+
+sensitivity 0.9898
+
+specificity 0.1923
+
+kappa 0.2667
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+
+```
+
+## Random Forest
+
+```{r}
+
+#random forest model
+set.seed(42)
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = train_data,
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, test_data, type = "class")
+
+
+rf_model
+#confusion matrix of model
+table(Predicted = forrest_pred_class, Actual = test_data$term_deposit_factor)
+
+mean(forrest_pred_class == test_data$term_deposit_factor)
+
+confusionMatrix(forrest_pred_class, test_data$term_deposit_factor)
+
+varImpPlot(rf_model)
+
+
+```
+
+```{r}
+
+
+
+
+```
+
+## Adaboost
+
+```{r}
+#adaboost
+ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+ada_partdata[] <- lapply(ada_partdata, function(x) {
+  if (is.character(x)) factor(x) else x
+})
+
+
+  
+set.seed(42)
+
+idx <- createDataPartition(ada_partdata$term_deposit_factor, p = 0.7, list = FALSE)
+part_train_data <- ada_partdata[idx, ]
+part_test_data  <- ada_partdata[-idx, ]
+
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = part_train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, part_test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(part_test_data$term_deposit_factor)
+)
+
+confusionMatrix(ada_pred$class, part_test_data$term_deposit_factor)
+
+ada_model$importance
+
+
+```
+
+```{r}
+
+
+```
+
+## Remove features for all models
+
+remove duration, default, loan, contact, education, employment variation rate. make the number of yes equal to the number of nos for term deposit subscription. Randomly selected term deposit row containing yes to equal the number of term deposit rows containting nos.
+
+```{r}
+set.seed(42)
+mod_data <-  modeldata |> dplyr::select( -default, -loan, -contact, -education, -emp.var.rate)
+#removing highly correlated features
+
+term_deposit_no <- mod_data %>% filter(term_deposit_factor == 0)
+term_deposit_yes  <- mod_data %>% filter(term_deposit_factor == 1)
+#separating the positives and negatives
+num_yes <- nrow(term_deposit_yes)
+
+
+no_sample <- term_deposit_no %>% sample_n(num_yes) #sample the same number of negatives as positives
+
+equal_data <- bind_rows(term_deposit_yes, no_sample) #a dataset with equal number of positives and negatives
+
+
+```
+
+```{r}
+
+#create the training dataset and test data set based off the equal yes and no data above
+eqtrain_index <- sample(seq_len(nrow(equal_data)), size = 0.7 * nrow(equal_data))
+eqtrain_data <- equal_data[eqtrain_index, ]
+eqtest_data  <- equal_data[-eqtrain_index, ]
+```
+
+rebuild models
+
+# Rebuild the models
+
+## Decision Trees
+
+```{r}
+set.seed(42)
+#decision tree model
+
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, eqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+confusionMatrix(pred_class, eqtest_data$term_deposit_factor)
+```
+
+0.7338 correct however the data is more balanced.
+
+sensitivity: 0.8741 actual positives , specificity: 0.5940 actual negatives
+
+kappa 0.4679
+
+experiment 1:
+
+cp = 0.001 overfit then prune
+
+```{r}
+
+set.seed(42)
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, eqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+confusionMatrix(pred_class, eqtest_data$term_deposit_factor)
+```
+
+performs slightly better 0.7471 accuracy
+
+sensitivity: 0.8662
+
+specificity 0.6284
+
+kappa 0.4944
+
+remove additonal features from data: month, day
+
+```{r}
+
+set.seed(42)
+feqtrain_data <- eqtrain_data |> dplyr::select(-day_of_week,-month)
+feqtest_data <- eqtest_data |> dplyr::select(-day_of_week,-month)
+
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = feqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, feqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = feqtest_data$term_deposit_factor)
+
+mean(pred_class == feqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+confusionMatrix(pred_class, feqtest_data$term_deposit_factor)
+
+
+```
+
+slightly better performance
+
+accuracy 0.7482
+
+sensitivity : 0.8719
+
+specificity: 0.6248 slightly worse
+
+kappa .4966
+
+pruning the tree 5
+
+```{r}
+
+set.seed(42)
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = feqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 5
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, feqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = feqtest_data$term_deposit_factor)
+
+mean(pred_class == feqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+confusionMatrix(pred_class, feqtest_data$term_deposit_factor)
+```
+
+sensitivity improves slightly and everything else is worse.
+
+retraining the Random Forest model with the equally split data
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  #method = "class"
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, eqtest_data, type = "class")
+forrest_pred_prob <- predict(rf_model, eqtest_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(forrest_pred_class == eqtest_data$term_deposit_factor)
+
+confusionMatrix(forrest_pred_class, eqtest_data$term_deposit_factor)
+
+varImpPlot(rf_model)
+
+```
+
+surprisingly model performance is roughly equal to just one decision tree
+
+kappa 0.4894, sensitivity 0.8791, specificity 0.6105 accuracy 0.7446
+
+increase the number of trees from 500 to 1000 (2x)
+
+```{r}
+
+
+set.seed(42)
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  #method = "class"
+  ntree = 1000,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, eqtest_data, type = "class")
+forrest_pred_prob <- predict(rf_model, eqtest_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(forrest_pred_class == eqtest_data$term_deposit_factor)
+
+confusionMatrix(forrest_pred_class, eqtest_data$term_deposit_factor)
+
+varImpPlot(rf_model)
+```
+
+only a slight improvement:
+
+0.745 accuracy,
+
+kappa 0.4901, sensitivity 0.8799, specificity 0.6105.
+
+lets remove features that have both a low mean decrease accuracy and mean decrease gini
+
+day_of_week, marital, housing, previous
+
+```{r}
+
+set.seed(42)
+rfeqtrain_data <- eqtrain_data |> dplyr::select(-day_of_week,-marital, -housing, -previous)
+rfeqtest_data <- eqtest_data |> dplyr::select(-day_of_week,-marital, -housing, -previous)
+
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = rfeqtrain_data,
+  #method = "class"
+  ntree = 1000,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, rfeqtest_data, type = "class")
+forrest_pred_prob <- predict(rf_model, rfeqtest_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = rfeqtest_data$term_deposit_factor)
+
+mean(forrest_pred_class == rfeqtest_data$term_deposit_factor)
+
+confusionMatrix(forrest_pred_class, rfeqtest_data$term_deposit_factor)
+
+varImpPlot(rf_model)
+
+
+```
+
+```         
+Accuracy : 0.7453, Kappa : 0.4909, Sensitivity : 0.8827, Specificity : 0.6083
+specificity decreased
+
+```
+
+## tuned tree
+
+```{r}
+
+set.seed(42)
+rfeqtrain_data$term_deposit_factor <- factor(
+  ifelse(rfeqtrain_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")   # convert back to yes and no
+)
+
+rfeqtest_data$term_deposit_factor <- factor(
+  ifelse(rfeqtest_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")   # convert back to yes and no
+)
+
+tuned_rf <- train(
+  term_deposit_factor ~ .,
+  data = rfeqtrain_data,
+  method = "rf",
+  trControl = trainControl(
+    method = "cv",
+    number = 5,
+    classProbs = TRUE,
+    summaryFunction = twoClassSummary
+  ),
+  metric = "ROC",
+  tuneLength = 5
+)
+
+tuned_rf
+
+varImp(tuned_rf)
+
+forrest_pred_class <- predict(tuned_rf, rfeqtest_data, type = "raw")
+
+table(Predicted = forrest_pred_class, Actual = rfeqtest_data$term_deposit_factor)
+
+mean(forrest_pred_class == rfeqtest_data$term_deposit_factor)
+
+confusionMatrix(forrest_pred_class, rfeqtest_data$term_deposit_factor)
+
+head(tuned_rf$resample)
+sd(tuned_rf$resample$ROC)
+sd(tuned_rf$resample$Kappa)
+sd(tuned_rf$resample$accuracy)
+
+```
+
+```         
+ Accuracy : 0.7478 
+ Kappa : 0.4958
+ Sensitivity : 0.6413                       Specificity : 0.8547 
+  specificity improved and sensitivity decreased.  
+```
+
+```{r}
+
+#adaptive boosting model
+
+
+#ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+#ada_partdata[] <- lapply(ada_partdata, function(x) {
+#  if (is.character(x)) factor(x) else x
+#})
+
+##ada_partdata$default <- factor(ada_partdata$default, levels = c("no", "yes", "unknown"))
+  
+set.seed(42)
+
+#idx <- createDataPartition(ada_partdata$term_deposit_factor, p = 0.7, list = FALSE)
+#part_train_data <- ada_partdata[idx, ]
+#part_test_data  <- ada_partdata[-idx, ]
+
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = eqtrain_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, eqtest_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(eqtest_data$term_deposit_factor)
+)
+
+confusionMatrix(ada_pred$class, eqtest_data$term_deposit_factor)
+
+sort(ada_model$importance, decreasing = TRUE)
+```
+
+one of the best models so far\
+
+```         
+Accuracy : 0.7493
+```
+
+```         
+Kappa : 0.4987
+```
+
+```         
+Sensitivity : 0.8597                      Specificity : 0.6392
+```
+
+increase mfinal
+
+```{r}
+
+set.seed(42)
+adaeqtrain_data <- eqtrain_data
+adaeqtest_data <- eqtest_data
+
+adaeqtrain_data$term_deposit_factor <- factor(
+  ifelse(eqtrain_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")
+)
+adaeqtest_data$term_deposit_factor <- factor(
+  ifelse(eqtest_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")
+)
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = adaeqtrain_data,
+  mfinal = 200,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, adaeqtest_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(adaeqtest_data$term_deposit_factor)
+)
+
+confusionMatrix(ada_pred$class, adaeqtest_data$term_deposit_factor)
+
+sort(ada_model$importance, decreasing = TRUE)
+```
+
+```         
+Accuracy : 0.7443 Kappa : 0.4876 Sensitivity : 0.6329          
+            Specificity : 0.8539 
+```
+
+lets remove features that have both a low importance
+
+day_of_week, marital, housing, previous
+
+```{r}
+
+set.seed(42)
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = rfeqtrain_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, rfeqtest_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(rfeqtest_data$term_deposit_factor)
+)
+
+confusionMatrix(ada_pred$class, rfeqtest_data$term_deposit_factor)
+
+sort(ada_model$importance, decreasing = TRUE)
+
+
+```
+
+```         
+Accuracy : 0.7446, Sensitivity : 0.6277,                      Specificity : 0.8619
+```
+
+```         
+Kappa : 0.4894 
+```
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Changes to   data/experiments</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>specificity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>sensitivity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>note</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Fulldata minus duration</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8992</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.2667</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.9898</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1923</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp = 0.01</p>
+<p>   </p>
+<p>Maxdepth = 30</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Remove highly correlated features, made the number of   yes equal to the number of no for the term deposits </p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7338</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4679</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8741</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5940</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p> </p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Same data set as above smaller complexity parameter</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7471</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4944</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8662</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6284</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp=0.001</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Removed additional features day_of_week and month</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7482</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4966</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8719</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6248</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp = 0.001</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>The max depth or number of splits is reduced   effectively pruning the tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7374</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4751</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8971</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5782</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp=0.001   maxdepth = 5</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Changes to   data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Specificity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Sensitivity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>note</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Fulldata minus duration</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8975</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.334</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.9768</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.2785</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Ntree = 500</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Remove highly correlated features, made the number of   yes equal to the number of no for the term deposits</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7446</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4894</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8799</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6098</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p> </p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Increased the number of trees in the random forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7464</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.493</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8820</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6112</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Ntree = 1000</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Removed more features  based on mean decrease accuracy and mean   decrease gini</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.745</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4902</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8892</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6011</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Ntree = 1000</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>5 fold cross validation maximize Area Under the ROC   Curve</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7493</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4987</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8583</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6406</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p> </p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Changes to   data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>specificity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>sensitivity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>note</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>adaboost</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Started with smaller provided data set due to   computation time</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.915</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5472</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.9573</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5704</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Mfinal = 100</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>adaboost</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Remove highly correlated features, made the number of   yes equal to the number of no for the term deposits</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7493</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4987</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8597</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6392</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p> </p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>adaboost</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Increase number of boosting iterations</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7471</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4944</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8633</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6313</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Mfinal = 200</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Adaboost</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Removed features that have a low importance: day_of_week,   marital, housing, previous</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7446</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4894</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8619</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6277</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p> </p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+The dataset provided contained customer information and campaign information for term deposit subscriptions.  Three models were compared. Initially, variance was low when the data was mostly unmodified due to there being a high bias towards none subscribers.  The random forest and ensemble methods reduce variance by averaging many trees, while also lowering bias compared to a single tree.  AdaBoost reduces bias by focusing on misclassified cases That was most prominent when comparing the models on a data set that lacked feature engineering.
+
+For the experiments explored in this study sampling of the data and the features that the models were trained on were varied.  Also, hyperparameters of the models were adjusted to see the impact on the results. Initially models were biased towards nonsubscribers, so adjustments were made to the models and data to increase accuracy of predicting subscribers.
+
+Initially models were trained on the full data set with 70% of the dataset to be used for training and 30% was used for testing minus duration which was dependent on the target value.   All models showed high accuracy and a low kappa.  The low kappa signifies that the models were not making predictions much better than statistically random chance.   The specificity was high due to the models being biased towards the term deposit not being subscribed to by customers.  The number of customers not subscribed heavily outweighed the number of customers that did and the models reflected that.  Roughly 10% of the customers subscribed, so if the models said that every customer did not subscribe then the model would be 90% accurate.  So, the models showed that they were indeed 90% accurate when the data is 90% not subscribed.  The kappa was highest for adaboost and lowest for the decision tree. It should be noted that the adaboost was not originally trained on the full 70% of the dataset due to the computation time.  Sensitivity was also in the order of adaboost\> random forests\> decision tree. This indicated that the decision tree was the worst at predicting subscribers. 
+
+To improve the model’s sensitivity towards correctly identifying subscribers a new data frame was constructed. The data frame contained all the subscribers and an equal number of randomly sampled nonsubscribers was constructed.  The new data frame also had a few highly correlated features removed, such as: default, loan, contact, education, and employment variation rate.
+
+  70% of this new 50/50 subcriber/nonsubscriber dataset was used to train the models.  They were then tested on the remaining 30% of the dataset.  Now an accuracy above 50% would indicate the model may be better than random guessing. When the models were trained on the newly sampled data set the bias shifted towards subscribers more, but it did make the model better at differentiating between the classes since they were equal. The kappa increased for the decision tree and the random forest, indicating that they were not getting their accuracy purely by random chance.  Sensitivity, the proportion of true positives correctly identified, also increased for all the models.  The overall accuracy and specificity decreased due to the data consisting of significantly less nonsubscribers than the original dataset. The accuracy, kappa, and specificity decreased for adaboost when trained under the new dataset, this may indicate that adaboost works better with complexity or biased data. 
+
+For the next set of experiments the models were changed individually.  Focusing on the decision tree, it appeared that it may have been underfitted due to only using a couple of features.  The complexity parameter was lowered 10-fold to see if a more fitted tree could would have more accurate predictions.  Accuracy, kappa, and sensitivity all increased.  The sensitivity only decreased slightly.  The tree had grown significantly more complex by changing this parameter. In order to reduce complexity a couple of more features were removed: day_of_week and month.  Which had a minimal effect on the model. To avoid any overfitting and reduce complexity the tree was pruned to have a max depth of 5 sets of splits. This resulted in a model that had a lower sensitivity or true positive outcomes.  The most complex model had the best results when it came to differentiating subscribers from nonsubscribers.
+
+For the random forest the number of trees in the model increased 2-fold to see if the added complexity would improve the model performance.  The model did have a slight increase in all metrics, however with significantly increased model building time. The mean decrease gini and mean decrease accuracy charts were compared.  Features that were both low in decrease in accuracy and decrease in gini (class purity due to split) were then removed from the model:  day_of_week, marital, housing, and previous.  Model performance mostly remained the same after removal of these features, indicating they were not necessary. Finally the random forest was tuned using a 5 fold cross validation.  From this there was a decent increase in finding true positives with not much change in accuracy and kappa. Specificity decreased significantly though.
+
+The first unique adaboost experiment was to increase the number of boosting iterations 2-fold which also slightly decreased the sensitivity.  Looking at the ranked importance of the features day_of_week, marital, housing, and previous were removed. The removal of these features decreased the performance of the model slightly. 
+
+It appears that decision trees, adaboost and random forests are very similar in performance especially if the random forest is tuned.  It appears that in order to improve the performance of the models additional feature engineering may make a dramatic difference.  Since they were trained on a similar and even the same data set the performance is not as dramatic as I would have thought.  The decision tree started off as more biased towards nonsubscribers when compared to random forests and adaboost, but its performance improved by making the class sizes equivalent.  There are models with very similar metrics between all three.  Additional tuning the models would be needed to truly strike a balance between detecting positives and negatives.  I would recommend using the random forest due to it achieving the highest sensitivity after tuning. Adaboost is not far behind and may potentially be better with better hyperparameter selection.  It appears that the dataset is complex and it models it the unmodified data the best.  A complex decision tree performed remarkably similarly to the other two models.  With an updating dataset adaboost would be should be better to handle the changes without much revision.  
+
+reference:
+
+Input variables: \# bank client data: 1 - **age** (numeric) 2 - **job : type of job** (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown") 3 - **marital : marital status** (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed) 4 - **education** (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown") 5 - **default: has credit in default**? (categorical: "no","yes","unknown") 6 - **housing: has housing loan**? (categorical: "no","yes","unknown") 7 - **loan: has personal loan**? (categorical: "no","yes","unknown") \# related with the last contact of the current campaign: 8 - **contact: contact communication type** (categorical: "cellular","telephone") 9 - **month: last contact month of year** (categorical: "jan", "feb", "mar", ..., "nov", "dec") 10 - **day_of_week: last contact day of the week** (categorical: "mon","tue","wed","thu","fri") **11 - duration: last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model**. \# other attributes: 12 - **campaign: number of contacts performed during this campaign and for this client** (numeric, includes last contact) 13 - **pdays: number of days that passed by after the client was last contacted from a previous campaign** (numeric; **999 means client was not previously contacted**) 14 - **previous: number of contacts performed before this campaign and for this client (numeric)** 15 - **poutcome: outcome of the previous marketing campaign** (categorical: "failure","nonexistent","success") \# social and economic context attributes 16 - **emp.var.rate: employment variation rate** - quarterly indicator (numeric) 17 - **cons.price.idx: consumer price index** - monthly indicator (numeric)\
+18 - **cons.conf.idx: consumer confidence index** - monthly indicator (numeric)\
+19 - **euribor3m: euribor 3 month rate** - daily indicator (numeric) 20 - **nr.employed: number of employees** - quarterly indicator (numeric)
+
+Output variable (desired target): 21 - **y** - has the client subscribed a term deposit? (binary: "yes","no")
+
