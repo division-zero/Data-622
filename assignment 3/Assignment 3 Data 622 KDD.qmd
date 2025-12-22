@@ -1,0 +1,1235 @@
+---
+title: "Data 622 Assignment 3"
+author: "Keith DeNivo"
+format: pdf
+editor: visual
+---
+
+## 
+
+## 
+
+```         
+```
+
+## 
+
+# Comparing Decision Trees and SVM
+
+Comparison between decision tree based methods and Support Vector Machines.
+
+In “decision tree ensembles to predict COVID-19 infection decision” from Amir et al 2021, tree based models were trained based off a dataset of 600 patients with 19 features consisting of age and 18 laboratory tests such as (hematocrit, hemoglobin, platelets, red blood cells, lymphocytes, leukocytes) (1).  This dataset had a positive to negative class imbalance ratio of  1:6.5 (1).  The decision trees had to predict the Covid-19 positive cases based on the given features in the dataset (1). For initial comparison between the different tree  models, this imbalanced dataset was used. When the decision tree ensembles were compared standard C4.5 trees (standard classifiers) performed better on accuracy and precision, however for 4 performance measures (F1-measure, recall, AU-ROC, and AUPRC) decision tree ensembles for imbalanced datasets performed better (1).
+
+Different sampling techniques were applied to the models to offset the imbalance such as: SMOTE and RUS.  RUS performed better for the bagging and random forest methods (1).   Further comparisons between XGBoosted, AdaBoost, and random forest models were done by changing the ratio of positives and negatives in the data. Ensemble size was also varied.  Age was a significant feature that improved predictions for a majority of the ensemble  methods (1).  In general the Balanced random Forest with RUS sampling performed the best with an accuracy of 0.816  for the imbalanced dataset (1). It is worth noting that accuracy is a poor metric for the imbalanced, so the emphasis should be on recall, F1, AUROC, AUPRC.
+
+Guhathakurata S et al 2021 used Support Vector Machine models to predict between 3 classes for the target variable: Not infected, mildly infected, severely infected (2).  Eight attributes: (temp, breathing rate, hypertension, Heart beat rate, acute respiratory disease syndrome, chest pain, heart disease, cough with sputum) were used as features. The dataset they used had 200 records (2).  The SVM model they used had a linear kernel to better separate the data (2).  The SVM model generated had accuracy of 0.87 with a high f1 score (0.97) for those who are severely infected and a lower f1 score (0.75) for those who were not infected. They also compared several different modeling algorithms. SVM outperformed kNN, Naïve Bayes, Random Forest, AdaBoost, Binary Tree (2). 
+
+The differences between the datasets were highlighted to show that Guhathakurata S et al 2021 and Amir et al 2021 to show that the models cannot be directly compared, since they do not use the same features.  Amir had a binary classification and Guhathakurata had 3 classes, so there scores were not directly comparable. Though Guhathakurata S et al. 2021 does demonstrate that SVM was better than decision trees, the same optimization most likely had not been applied.   It would be interesting to see how the SVM and balanced random forest (RUS) would perform side by side.  Their models suggest that RF works well for a binary classification and SVM works for a multi class prediction.
+
+The following articles were chosen to be within the scope of analytical chemistry of the environment for public health.  I am an analytical chemist working for the division of environmental sciences for the Department of Health.  Articles related to chemistry, the environment or public health were chosen.  These are broad topics, however each of the articles directly compared a decision tree based model and Support Vector machine model. 
+
+A similar study to the previous two compares different classification models for predicting death due to COVID-19, Gharehhasani et al. 2024  compared decision trees SVM, and Adaboost (3).  Surprisingly the accuracy of decision trees was higher than SVM and Adaboost (3).  “The results showed that the sensitivity, specificity, accuracy and the area under the receiver operating characteristic curve were respectively 0.60, 0.68, 0.71, and 0.75 in the DT model, 0.54, 0.62, 0.63, and 0.71 in the SVM model, and 0.59, 0.65, 0.69 and 0.74 in the AdaBoost model.” (3). 8.8% of the dataset of 23504 had succumbed to COVID.  Variables such as age, chronic blood disease, fever, cough, muscle pain, immune system deficiency, low level of consciousness, diarrhea, vomiting, sense of taste, abdominal pain, chronic lung disease, and neurological disorders were used as features in their models (3). 
+
+Though looking at the study’s metrics there appears to be very little difference between the decision tree model and the AdaBoost model. Suggested future work would include random forest models.  The AdaBoost model potentially could be more robust and adaptable to new data due to not relying on single splits.
+
+  A study was done that predicted the amount of dissolved oxygen in estuarine (brackish water).  Random forest (RF), SVM, decision trees, and regression models were compared.  For the continuous data the RF model had overall better predictive ability compared to the others, this was most likely due to the limited data. SVM was second (4).
+
+For predicting the amount of ozone based on climate variables, RF, DT regression, and support vector regression were compared.  RF had the highest R² (0.970), lowest RMSE. SVR performed better than DT regression but below RF (5).
+
+For another study, water quality was classified into: excellent, acceptable, slightly polluted. polluted, and heavily polluted. The study compared data mining techniques such as: Naive Bayes, DT, k‑NN, SVM, ANN, and rule‑based classifiers. Support vector machines and decision tree classifiers proved to be the best classifiers because they achieved statistically valid results (6). The study also suggested that when provided a broad spectrum of water parameters, support vector machines and decision tree classifiers will provide reliable and robust results. Remarkably the decision tree model created and an accuracy and kappa equal to 1 (6). 
+
+Clathrate hydrate is the tendency to form ice like crystalline structures of water that traps gases such as methane. This occurs under specific physical conditions (pressure temperature, concentration etc.)  Machine learning was implemented to model when these conditions are met and the structures are formed. This study compared decision trees and SVM.  The SVM model had better predictive capabilities than decision trees. SVM outperforms DT in complex chemical prediction tasks, which reinforces their robustness.  There were multiple target variables that were continuous (such as temperature, pressure and concentration), and SVM generally performs well with higher dimensional data.
+
+Out of the 6 studies that directly compared SVM vs decision tree methods.    SVM (was preferred 2 times and decision tree/ensemble decision tree methods were preferred 4 times.  In multi-class classification and some environmental classification tasks: SVM frequently achieves higher headline accuracy.
+
+Ultimately it depends on the dataset and the properties of the features and the complexity of the prediction that will determine which machine learning model will perform the best.  Performance varies across a large range of applications. When looking at the regression paper RF outperformed Support vector regression, however that was only one dataset, and the performance of the model is dependent on the content of that dataset.
+
+1.      Ahmad, Amir, Safi, Ourooj, Malebary, Sharaf, Alesawi, Sami, Alkayal, Entisar, Decision Tree Ensembles to Predict Coronavirus Disease 2019 Infection: A Comparative Study, *Complexity*, 2021, 5550344, 8 pages, 2021. [**https://doi.org/10.1155/2021/5550344**](https://doi.org/10.1155/2021/5550344)
+
+2.      Guhathakurata S, Kundu S, Chakraborty A, Banerjee JS. A novel approach to predict COVID-19 using support vector machine. Data Science for COVID-19. 2021:351–64. doi: 10.1016/B978-0-12-824536-1.00014-9. Epub 2021 May 21. PMCID: PMC8137961.
+
+3.      gharehhasani, Bita Shokri, Mansour Rezaei, Armin Naghipour, Nazanine Sayad, Shayan Mostafaei, and Ehsan Alimohammadi. “The Most Important Variables Associated with Death Due to COVID‐19 Disease, Based on Three Data Mining Models Decision Tree, AdaBoost, and Support Vector Machine: A Cross‐sectional Study.” *HEALTH SCIENCE REPORTS* 7, no. 7 (2024): e2266-n/a. <https://doi.org/10.1002/hsr2.2266>.
+
+4.      Siddik, Mohammad Abu Zafer. “Application of Machine Learning Approaches in Predicting Estuarine Dissolved Oxygen (DO) under a Limited Data Environment.” *Water Quality Research Journal* 57, no. 3 (2022): 140–51. <https://doi.org/10.2166/wqrj.2022.002>.
+
+5.      Balogun, Abdul-Lateef, and Abdulwaheed Tella. “Modelling and Investigating the Impacts of Climatic Variables on Ozone Concentration in Malaysia Using Correlation Analysis with Random Forest, Decision Tree Regression, Linear Regression, and Support Vector Regression.” *Chemosphere (Oxford)* 299 (2022). <https://doi.org/10.1016/j.chemosphere.2022.134250>.
+
+6.      Babbar, Richa, and Sakshi Babbar. “Predicting River Water Quality Index Using Data Mining Techniques.” *Environmental Earth Sciences* 76, no. 14 (2017). <https://doi.org/10.1007/s12665-017-6845-9>.
+
+7.      Hsu, Chou-Yi, Jorge Sebastian Buñay Guaman, Amit Ved, Anupam Yadav, G Ezhilarasan, A Rameshbabu, Ahmad Alkhayyat, et al. “Prediction of Methane Hydrate Equilibrium in Saline Water Solutions Based on Support Vector Machine and Decision Tree Techniques.” *Scientific Reports* 15, no. 1 (2025). https://doi.org/10.1038/s41598-025-95969-w.
+
+## 
+
+## DT, RF, ADABOOST, SVM
+
+```{r}
+#| echo: false
+#| include: false
+
+library(MASS)
+library(broom)
+library(marginaleffects)
+library(cowplot)
+library(psych)
+library(tidyverse)
+library(fpp3)
+library(randomForest)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caTools)
+library(gbm)
+library(mlbench)
+library(ipred)
+library(class)
+library(kernlab)
+library(partykit)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(corrplot)
+library(doParallel)
+library(writexl)
+library(rcompanion)
+library(dplyr)
+library(DescTools)
+library(DataExplorer)
+library(skimr)
+library(GGally)
+library(ggrepel)
+library(adabag)
+```
+
+## Read in Data
+
+```{r}
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional-full.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+fulldata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(fulldata)
+# Clean up the temporary file
+unlink(temp_file)
+
+
+```
+
+```{r}
+
+#smaller data set for training or testing
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/assignment%201/bank%2Bmarketing/bank-additional/bank-additional/bank-additional.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+partdata <- read.delim(file_url, sep = ";", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(partdata)
+# Clean up the temporary file
+unlink(temp_file)
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+## Basic data info
+
+```{summary(fulldata)}
+
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+```{}
+```
+
+#converting yes to 1 and no to 0 for binary classification
+
+```{r}
+partdata$term_deposit <- ifelse(partdata$y == "yes", 1, 0)
+partdata$term_deposit_factor <- factor(partdata$term_deposit, levels = c(0, 1))
+
+```
+
+# Data cleaning
+
+## 
+
+```{r}
+
+
+fulldata$term_deposit <- ifelse(fulldata$y == "yes", 1, 0)
+fulldata$term_deposit_factor <- factor(fulldata$term_deposit, levels = c(0, 1))
+set.seed(42)
+#removing columns/features that are directly related to target variable
+modeldata <- fulldata |> dplyr::select(-y, -term_deposit, -duration)
+#taking the full data set and splitting 0.7:0.3 train:test split.
+train_index <- sample(seq_len(nrow(modeldata)), size = 0.7 * nrow(modeldata))
+train_data <- modeldata[train_index, ]
+test_data  <- modeldata[-train_index, ]
+
+#train on full data set without missing features
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 20,
+    maxdepth = 30
+  )
+)
+
+#tree_model
+
+
+
+
+```
+
+```         
+Accuracy : 0.8992
+```
+
+sensitivity 0.9898
+
+specificity 0.1923
+
+kappa 0.2667
+
+```{}
+```
+
+```{}
+```
+
+## 
+
+```{r}
+
+#random forest model
+set.seed(42)
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = train_data,
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, test_data, type = "class")
+
+
+#rf_model
+#confusion matrix of model
+#table(Predicted = forrest_pred_class, Actual = test_data$term_deposit_factor)
+
+#mean(forrest_pred_class == test_data$term_deposit_factor)
+
+#confusionMatrix(forrest_pred_class, test_data$term_deposit_factor)
+
+#varImpPlot(rf_model)
+
+
+```
+
+```{}
+```
+
+## 
+
+```{r}
+#adaboost
+ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+ada_partdata[] <- lapply(ada_partdata, function(x) {
+  if (is.character(x)) factor(x) else x
+})
+
+
+  
+set.seed(42)
+
+idx <- createDataPartition(ada_partdata$term_deposit_factor, p = 0.7, list = FALSE)
+part_train_data <- ada_partdata[idx, ]
+part_test_data  <- ada_partdata[-idx, ]
+
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = part_train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, part_test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(part_test_data$term_deposit_factor)
+)
+
+#confusionMatrix(ada_pred$class, part_test_data$term_deposit_factor)
+
+#ada_model$importance
+
+
+```
+
+```{}
+```
+
+## Remove features for all models
+
+remove duration, default, loan, contact, education, employment variation rate. make the number of yes equal to the number of nos for term deposit subscription. Randomly selected term deposit row containing yes to equal the number of term deposit rows containting nos.
+
+```{r}
+set.seed(42)
+mod_data <-  modeldata |> dplyr::select( -default, -loan, -contact, -education, -emp.var.rate)
+#removing highly correlated features
+
+term_deposit_no <- mod_data %>% filter(term_deposit_factor == 0)
+term_deposit_yes  <- mod_data %>% filter(term_deposit_factor == 1)
+#separating the positives and negatives
+num_yes <- nrow(term_deposit_yes)
+
+
+no_sample <- term_deposit_no %>% sample_n(num_yes) #sample the same number of negatives as positives
+
+equal_data <- bind_rows(term_deposit_yes, no_sample) #a dataset with equal number of positives and negatives
+
+
+```
+
+```{r}
+
+#create the training dataset and test data set based off the equal yes and no data above
+eqtrain_index <- sample(seq_len(nrow(equal_data)), size = 0.7 * nrow(equal_data))
+eqtrain_data <- equal_data[eqtrain_index, ]
+eqtest_data  <- equal_data[-eqtrain_index, ]
+
+#making 1 to be first therefore the positive class
+eqtrain_data$term_deposit_factor <- relevel(eqtrain_data$term_deposit_factor, ref = "1")
+eqtest_data$term_deposit_factor <- relevel(eqtest_data$term_deposit_factor, ref = "1")
+```
+
+# Train and evaluate the Models
+
+## Decision Trees
+
+```{r}
+set.seed(42)
+#decision tree model
+
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, eqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+#confusion matrix contains most metrics for classifiers
+cm <- confusionMatrix(pred_class, eqtest_data$term_deposit_factor)
+
+cm
+# calculate the F1 Score which is more useful than accuracy due to the focus on precision and recall.  (the harmonic mean of precision and recall)
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+0.7338 correct however the data is more balanced.
+
+specificity: 0.8741 actual positives , sensitivity: 0.5940 actual negatives
+
+kappa 0.4679
+
+F1 0.6908636
+
+## Deeper Decision Tree
+
+cp = 0.001 overfit
+
+```{r}
+
+set.seed(42)
+tree_model <- rpart(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, eqtest_data, type = "class")
+#pred_prob <- predict(tree_model, eqtest_data, type = "prob")
+
+
+
+table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+cm <- confusionMatrix(pred_class, eqtest_data$term_deposit_factor)
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_tree <- 2 * (precision * recall) / (precision + recall)
+f1_tree
+```
+
+performs slightly better 0.7471 accuracy
+
+specificity: 0.8662
+
+sensitivity 0.6284
+
+kappa 0.4944
+
+F1 0.713355
+
+```{}
+```
+
+```{}
+```
+
+## Random forest
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  #method = "class"
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, eqtest_data, type = "class")
+forrest_pred_prob <- predict(rf_model, eqtest_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+mean(forrest_pred_class == eqtest_data$term_deposit_factor)
+
+cm <- confusionMatrix(forrest_pred_class, eqtest_data$term_deposit_factor)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_rf <- 2 * (precision * recall) / (precision + recall)
+f1_rf
+
+varImpPlot(rf_model)
+
+
+```
+
+surprisingly model performance is roughly equal to just one decision tree
+
+kappa 0.4894, sensitivity 0.8791, specificity 0.6105 accuracy 0.7446
+
+F1 0.7116969
+
+```{}
+```
+
+```{}
+```
+
+```         
+Accuracy : 0.7453, Kappa : 0.4909, Sensitivity : 0.8827, Specificity : 0.6083
+specificity decreased
+```
+
+## Tuned Random Forest
+
+```{r}
+
+yn_eqtrain_data <- eqtrain_data
+yn_eqtest_data <- eqtest_data
+
+set.seed(42)
+yn_eqtrain_data$term_deposit_factor <- factor(
+  ifelse(yn_eqtrain_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")   # convert back to yes and no
+)
+
+yn_eqtest_data$term_deposit_factor <- factor(
+  ifelse(yn_eqtest_data$term_deposit_factor == 1, "yes", "no"),
+  levels = c("yes", "no")   # convert back to yes and no
+)
+
+tuned_rf <- train(
+  term_deposit_factor ~ .,
+  data = yn_eqtrain_data,
+  method = "rf",
+  trControl = trainControl(
+    method = "cv",
+    number = 5,
+    classProbs = TRUE,
+    summaryFunction = twoClassSummary
+  ),
+  metric = "ROC",
+  tuneLength = 5
+)
+
+tuned_rf
+
+varImp(tuned_rf)
+
+forrest_pred_class <- predict(tuned_rf, yn_eqtest_data, type = "raw")
+
+#table(Predicted = forrest_pred_class, Actual = yn_eqtest_data$term_deposit_factor)
+
+#mean(forrest_pred_class == yn_eqtest_data$term_deposit_factor)
+
+cm <- confusionMatrix(forrest_pred_class, yn_eqtest_data$term_deposit_factor)
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_tune_rf <- 2 * (precision * recall) / (precision + recall)
+f1_tune_rf
+
+head(tuned_rf$resample)
+sd(tuned_rf$resample$ROC)
+sd(tuned_rf$resample$Kappa)
+sd(tuned_rf$resample$accuracy)
+
+```
+
+```         
+ Accuracy : 0.7478 
+ Kappa : 0.4958
+ Sensitivity : 0.6413                       Specificity : 0.8547 
+  specificity improved and sensitivity decreased. F1:  0.717789
+  
+```
+
+## Adaboost
+
+```{r}
+
+#adaptive boosting model
+
+
+#ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+#ada_partdata[] <- lapply(ada_partdata, function(x) {
+#  if (is.character(x)) factor(x) else x
+#})
+
+##ada_partdata$default <- factor(ada_partdata$default, levels = c("no", "yes", "unknown"))
+  
+set.seed(42)
+
+
+
+ada_model <- boosting(
+  term_deposit_factor ~ .,
+  data = eqtrain_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, eqtest_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(eqtest_data$term_deposit_factor)
+)
+
+cm <- confusionMatrix(ada_pred$class, eqtest_data$term_deposit_factor)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_ada <- 2 * (precision * recall) / (precision + recall)
+f1_ada
+
+sort(ada_model$importance, decreasing = TRUE)
+```
+
+F1: 0.717789\
+
+```         
+Accuracy : 0.7493
+```
+
+```         
+Kappa : 0.4987
+```
+
+```         
+Sensitivity : 0.8597                      Specificity : 0.6392
+```
+
+## SVM: Radial Basis kernel
+
+```{r}
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, eqtest_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, eqtest_data$term_deposit_factor)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+
+
+```
+
+radial f1 0.69912161
+
+## SVM: Linear kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_lin_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "vanilladot"
+)
+
+SVM_lin_model
+
+
+
+lin_pred_class <- predict(SVM_lin_model, eqtest_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(lin_pred_class, eqtest_data$term_deposit_factor)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+linear f1 0.697559
+
+```         
+```
+
+## SVM: hyperbolic tangent sigmoid kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_tanh_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "tanhdot"
+)
+
+SVM_tanh_model
+
+
+
+tanh_pred_class <- predict(SVM_tanh_model, eqtest_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(tanh_pred_class, eqtest_data$term_deposit_factor)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+tanh f1 0.5557
+
+radial is the best
+
+## Cost Parameters SVM
+
+Cost Parameter based on accuracy
+
+```{r}
+
+set.seed(42)
+
+cost_values <- c(1, seq(from=1, to  = 5, by = 1))
+accuracy_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, eqtest_data, type = "response")
+  agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+ 
+  
+  return (accuracy)
+})
+
+plot(cost_values, accuracy_values, type = "b")
+```
+
+Cost parameter of 2 was was shown to have the highest accuracy
+
+```{r}
+
+cost_values <- c(1, seq(from=1, to  = 5, by = 1))
+f1_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, eqtest_data, type = "response")
+  #agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  #accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+   cm <- confusionMatrix(rbf_pred, eqtest_data$term_deposit_factor)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(cost_values, f1_values, type = "b")
+```
+
+cost parameter of 3 had the highest F1 score. This was used as the best SVM model to compare to the other models.
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_rbf_model <- ksvm(
+  term_deposit_factor ~ ., 
+  data = eqtrain_data,
+  kernel = "rbfdot", C = 3
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, eqtest_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, eqtest_data$term_deposit_factor)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+For comparison of the models, all were trained and tested on the same dataset.  The dataset had equal number of randomly selected subscribers and all nonsubscribers.  I removed duration, default, loan, contact, education, and employment variation rate from the dataset. This was then split 3:7 for testing to training.  F1 score was used primarily to determine the performance of the models. The F1 score balances precision and recall which is important for imbalanced data.
+
+Tested several SVM kernels, compared their F1 score:
+
+Linear
+
++-----+------------------------------+-----+-----------+----+
+|     |                              |     |           |    |
++-----+------------------------------+-----+-----------+----+
+|     | SVM kernel                   |     | F1 score  |    |
++-----+------------------------------+-----+-----------+----+
+|     |                              |     |           |    |
++-----+------------------------------+-----+-----------+----+
+|     | Radial basis                 |     | 0.6991261 |    |
++-----+------------------------------+-----+-----------+----+
+|     |                              |     |           |    |
++-----+------------------------------+-----+-----------+----+
+|     | Linear                       |     | 0.697559  |    |
++-----+------------------------------+-----+-----------+----+
+|     |                              |     |           |    |
++-----+------------------------------+-----+-----------+----+
+|     | Hyperbolic tangent sigmoid   |     | 0.5557153 |    |
++-----+------------------------------+-----+-----------+----+
+|     |                              |     |           |    |
++-----+------------------------------+-----+-----------+----+
+
+Radial was the selected kernel for SVM due to having the highest F1 score.  Then the cost parameter was optimized for accuracy. The cost parameter changes the width of the decision boundary and controls the penalty for misclassification. A cost value of 3 was found to maximize the F1 score.  So, it was used for training the SVM model.
+
+A comparison of the metrics for each of the previously trained and the optimized SVM model.
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Sensitivity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Specificity</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>F1</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>2 depth tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7338</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5940</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8741</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4679</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6908636</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>~12 depth   tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7471</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6284</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8662</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4944</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.713355</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7486</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6198</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8777</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4973</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7116969</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Tuned CV RF</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.717789</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6614</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8180</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4793</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.717789</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Adaptive boosting</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7493</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6392</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8597</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4987</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7185484</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>SVM</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7417</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6112</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.8727</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4837</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.7032604</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+The top three models with the highest F1 score are: Adaptive Boosting, Tuned cross validated Random Forest, Deep Decision tree.  The adaptive boosting model also had the highest kappa indicating that its predictions are moderately better than random guessing and had the strongest agreement with the true labels beyond chance. The SVM may have performed better if it had a multi class prediction.  How complex the data is, what features are used, and the content of the data makes a big difference in the performance of the models. Depending on how the data is preprocessed many different outcomes could occur.  The models perform very similarly, which may indicate limitations or problems with the data itself.  The features may not provide clear separability between the classes, or it has too much noise causing a performance ceiling that the algorithms cannot overcome.
+
+reference:
+
+Input variables: \# bank client data: 1 - **age** (numeric) 2 - **job : type of job** (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown") 3 - **marital : marital status** (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed) 4 - **education** (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown") 5 - **default: has credit in default**? (categorical: "no","yes","unknown") 6 - **housing: has housing loan**? (categorical: "no","yes","unknown") 7 - **loan: has personal loan**? (categorical: "no","yes","unknown") \# related with the last contact of the current campaign: 8 - **contact: contact communication type** (categorical: "cellular","telephone") 9 - **month: last contact month of year** (categorical: "jan", "feb", "mar", ..., "nov", "dec") 10 - **day_of_week: last contact day of the week** (categorical: "mon","tue","wed","thu","fri") **11 - duration: last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model**. \# other attributes: 12 - **campaign: number of contacts performed during this campaign and for this client** (numeric, includes last contact) 13 - **pdays: number of days that passed by after the client was last contacted from a previous campaign** (numeric; **999 means client was not previously contacted**) 14 - **previous: number of contacts performed before this campaign and for this client (numeric)** 15 - **poutcome: outcome of the previous marketing campaign** (categorical: "failure","nonexistent","success") \# social and economic context attributes 16 - **emp.var.rate: employment variation rate** - quarterly indicator (numeric) 17 - **cons.price.idx: consumer price index** - monthly indicator (numeric)\
+18 - **cons.conf.idx: consumer confidence index** - monthly indicator (numeric)\
+19 - **euribor3m: euribor 3 month rate** - daily indicator (numeric) 20 - **nr.employed: number of employees** - quarterly indicator (numeric)
+
+Output variable (desired target): 21 - **y** - has the client subscribed a term deposit? (binary: "yes","no")
