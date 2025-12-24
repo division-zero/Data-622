@@ -11,6 +11,12 @@ editor: visual
 
 # Determining water potability
 
+For my job I use analytical chemistry techniques to identify and quantify toxic substances that are in drinking water in New York State. Examples of these substances are industrial waste products and poisons like pesticides.  Federal and state laws regulate how often water needs to be tested and the maximum concentration of the chemicals that are allowed for human consumption.  If a drinking water supply has one of these toxic substances above the threshold, then the water is deemed unsafe to drink and the supplier must correct the problem or face legal repercussions. 
+
+The dataset selected has features of water quality indicators.  The target variable is a class of whether the water is potable, or it is not potable. It would be helpful to have simple indicators that would help determine whether water is safe to drink or not.  Currently there are several costly methods that require specialized and expensive equipment in order to determine if the not dangerous.  Many methods require the use of mass spectrometers which are expensive and need laborious maintenance and specialized skills.  Many of the tests listed on the dataset require relatively inexpensive measures, such as pH, turbidity, and conductivity. So, if there were a few quick tests that could indicate that water is safe with good certainty, that potentially could save a lot of communities especially in resource limited areas.
+
+In general, these types of models could be a good flag for quality control.  If companies are selling food or liquids to consume, it would be good to determine from a only some tests whether a batch is good or not.  It may be utilized to raise some flags for the product from a few tests even if those few tests are in compliance with regulatory standards. So building a model to help interpret the quality of the consumable from easier and quicker tests may help protect people and save money.
+
 Target Variable is water potability class 1 , 0
 
 ## DT, RF, ADABOOST, SVM, Neural Network
@@ -56,6 +62,7 @@ library(neuralnet)
 library(mice)
 library(glmnet)
 library(NeuralNetTools)
+library(nnet)
 ```
 
 ## Read in Data
@@ -89,7 +96,7 @@ cor_matrix <- cor(fulldata, use = "complete.obs")
 round(cor_matrix, 3)
 ```
 
-# Data
+# 
 
 ## 
 
@@ -260,12 +267,13 @@ theme_minimal()+
 
 ```{r}
 
-
+sum(rowSums(is.na(fulldata)) > 0)
 
 
 ```
 
 ```{r}
+
 
 
 
@@ -1296,6 +1304,57 @@ f1_svm
 ```{r}
 
 set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_data,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_data) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+```{r}
+
+set.seed(42)
 
 
 
@@ -1405,7 +1464,7 @@ neural_model <- neuralnet(
   data = train_scaled,
   act.fct = "logistic", hidden = c(9,1),
   linear.output = FALSE,
-  threshold = 0.05
+  threshold = 0.01
 )
 
 plot(neural_model)
@@ -1431,8 +1490,10 @@ cm
 
 
 
-garson(neuralnet_model)   
-olden(neuralnet_model)    
+#garson(neural_model)   
+olden(neural_model, out_var = 1)
+#olden(neural_model, out_var = 0)
+
 
 
 #calculate f1 from precision and recall
@@ -1445,4 +1506,345 @@ f1_svm
 
 ```
 
-reference:
+remove some features
+
+```{r}
+
+train_neural <- train_scaled |> dplyr::select(-Turbidity, - Sulfate, -Conductivity)
+test_neural <- test_scaled |> dplyr::select(-Turbidity, - Sulfate, -Conductivity)
+set.seed(42)
+#neural network
+
+
+
+
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+hidden_layers <- c(seq(from=1, to  = 4, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+ neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_neural,
+  act.fct = "logistic",
+  linear.output = FALSE,
+  threshold = 0.01,
+ 
+    hidden = c(x)
+  
+  
+  
+)
+  neural_prob <- predict(neural_model, test_neural) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+```
+
+```{r}
+
+
+
+set.seed(42)
+#neural network
+
+
+
+
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+hidden_layers <- c(seq(from=0, to  = 3, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+ neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_neural,
+  act.fct = "logistic",
+  linear.output = FALSE,
+  threshold = 0.05,
+ if (x == 0){
+    hidden = 3
+ }
+  else{
+    hidden = c(3,x)
+  }
+  
+)
+  neural_prob <- predict(neural_model, test_neural) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+```
+
+```{r}
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_neural,
+  act.fct = "logistic", hidden = c(3,1),
+  linear.output = FALSE,
+  threshold = 0.05
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_neural) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+cm
+
+
+
+#garson(neural_model)   
+olden(neural_model, out_var = 1)
+#olden(neural_model, out_var = 0)
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+set.seed(42)
+
+hidden_layers <- c(seq(from=1, to  = 10, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = x,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+#nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+print(cat('layer',x,'Accuracy',cm$overall["Accuracy"],'kappa',cm$overall["Kappa"],'f1',f1,'precision',precision))
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+```
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+set.seed(42)
+
+
+
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = 3,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+f1
+```
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+
+
+set.seed(62)
+
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = 9,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+f1
+```
