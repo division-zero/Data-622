@@ -1,0 +1,1448 @@
+---
+title: "Data 622 Assignment 4"
+author: "Keith DeNivo"
+format: pdf
+editor: visual
+---
+
+## 
+
+## 
+
+# Determining water potability
+
+Target Variable is water potability class 1 , 0
+
+## DT, RF, ADABOOST, SVM, Neural Network
+
+```{r}
+#| echo: false
+#| include: false
+
+library(MASS)
+library(broom)
+library(marginaleffects)
+library(cowplot)
+library(psych)
+library(tidyverse)
+library(fpp3)
+library(randomForest)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caTools)
+library(gbm)
+library(mlbench)
+library(ipred)
+library(class)
+library(kernlab)
+library(partykit)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(corrplot)
+library(doParallel)
+library(writexl)
+library(rcompanion)
+library(dplyr)
+library(DescTools)
+library(DataExplorer)
+library(skimr)
+library(GGally)
+library(ggrepel)
+library(adabag)
+library(neuralnet)
+library(mice)
+library(glmnet)
+library(NeuralNetTools)
+```
+
+## Read in Data
+
+```{r}
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/Assignment%204/archive%20(8)/water_potability.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+fulldata <- read.delim(file_url, sep = ",", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(fulldata)
+# Clean up the temporary file
+unlink(temp_file)
+
+
+```
+
+## Basic data info
+
+```{r}
+
+summary(fulldata)
+
+
+colSums(is.na(fulldata))
+
+cor_matrix <- cor(fulldata, use = "complete.obs")
+
+round(cor_matrix, 3)
+```
+
+# Data
+
+## 
+
+```{r}
+
+
+
+
+
+for (col in names(fulldata)) {
+  p <- ggplot(fulldata, aes(y = .data[[col]])) +
+    geom_boxplot(fill = "steelblue", outlier.color = "red") +
+    labs(title = paste("Boxplot of", col), y = col) +
+    theme_minimal()
+  
+  print(p)  # prints each plot in the viewer
+}
+plot_bar(fulldata$Potability)
+
+
+```
+
+## Outliers
+
+```{r}
+set.seed(42)
+
+#impute the original dataset with predicitve mean matching
+X <- fulldata[sapply(fulldata, is.numeric)] 
+imputed <- mice(X, m = 1, method = "pmm", maxit = 5) 
+X <- complete(imputed)
+
+#data scaled 
+X_scaled <- scale(X)
+#back to data frame
+X <- data.frame(X_scaled)
+X$Potability = fulldata$Potability 
+#remove outliers
+md <-  mahalanobis(X_scaled, colMeans(X_scaled), cov(X_scaled)) 
+outliers <- which(md > qchisq(0.975, df=ncol(X_scaled))) 
+outliers
+length(outliers)
+
+#data without outliers, and is scaled and imputed.
+
+clean_data <- X[-outliers, ]
+clean_data <- na.omit(clean_data)
+clean_data$Potability <- factor(clean_data$Potability, levels = c(0, 1))
+clean_data$Potability <- relevel(clean_data$Potability, ref = "1")
+```
+
+## Train/Test Split
+
+```{r}
+
+set.seed(42)
+
+train_index <- sample(seq_len(nrow(fulldata)), size = 0.7 * nrow(fulldata))
+train_data <- fulldata[train_index, ]
+test_data  <- fulldata[-train_index, ]
+clean_train_data <- clean_data[train_index, ]
+clean_test_data <- clean_data[-train_index, ]
+
+clean_train_data <- na.omit(clean_train_data)
+clean_test_data <- na.omit(clean_test_data)
+
+
+
+
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+clean_data$Potability <- factor(clean_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+#making 1  the positive class
+clean_data$Potability <- relevel(clean_data$Potability, ref = "1")
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+same_rows <- intersect(clean_train_data, test_data)
+n_same <- nrow(same_rows)
+n_same
+
+
+
+```
+
+```{r}
+
+#removal of features
+#clean_test_data <- clean_test_data |> dplyr::select(-Trihalomethanes, -Conductivity, - Turbidity, - Organic_carbon)
+
+#clean_train_data <- clean_train_data |> dplyr::select(-Trihalomethanes, -Conductivity, - Turbidity, - Organic_carbon)
+```
+
+```{r}
+
+numeric_long <- fulldata  |> dplyr::select(-Potability, -Solids, -Conductivity) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+ggplot(numeric_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+
+numeric_long <- fulldata  |> dplyr::select( Solids, Conductivity) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+ggplot(numeric_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+
+#Potability should not be scaled
+num_cols <- sapply(train_data, is.numeric) 
+num_cols["Potability"] <- FALSE 
+
+#scale all the columns except potability
+train_scaled_vals <- scale(train_data[, num_cols])
+
+#apply the scale from the training data to the test data
+train_center <- attr(train_scaled_vals, "scaled:center") #pull out the center of the scaled data
+train_scale <- attr(train_scaled_vals, "scaled:scale") #apply the scaling factor
+
+#scale the test data using the scaling from the train data
+test_scaled_vals <- scale(test_data[, num_cols], center = train_center, scale = train_scale)
+
+#add the potability column back to training data and scale data 
+train_scaled <- data.frame(train_scaled_vals, Potability = train_data$Potability)
+
+test_scaled <- data.frame(test_scaled_vals, Potability = test_data$Potability)
+
+#checking the distributions to see that they are on the same scale.
+
+numeric_scaled_long <- train_scaled  |> dplyr::select(-Potability) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+
+#distributions on the same scale
+ggplot(numeric_scaled_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+```
+
+## 
+
+```{r}
+
+
+
+
+```
+
+```{r}
+
+
+
+
+
+
+
+```
+
+## Imputation
+
+Medians from training data set used to impute the training (dirty) and test data set
+
+```{r}
+num_cols <- names(train_data)[
+  sapply(train_data, is.numeric)
+]
+
+datamedians <- train_data |> select(-Potability) |> sapply( function(x) {
+  if (is.numeric(x)) median(x, na.rm = TRUE)
+})
+
+for (num_cols in names(datamedians)) {
+  train_data[[num_cols]][is.na(train_data[[num_cols]])] <- datamedians[num_cols]
+  test_data[[num_cols]][is.na(test_data[[num_cols]])]  <- datamedians[num_cols]
+}
+
+colSums(is.na(train_data))
+colSums(is.na(test_data))
+
+
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+```
+
+```{r}
+
+datapair <- fulldata |> ggpairs(
+  aes(color = Potability, fill = Potability)
+)
+
+datapair
+
+#describe(fulldata)
+skim(fulldata)
+```
+
+```         
+```
+
+## 
+
+```         
+```
+
+```         
+```
+
+## 
+
+```{r}
+
+
+
+```
+
+```         
+```
+
+## all models
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+```
+
+# Train and evaluate the Models
+
+## Decision Trees
+
+```{r}
+set.seed(42)
+#decision tree model
+
+tree_model <- rpart(
+  Potability ~ ., 
+  data = train_data, #not scaled
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+pred_prob <- predict(tree_model, test_data, type = "prob")
+
+
+
+#table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+#mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+
+#confusion matrix contains most metrics for classifiers
+cm <- confusionMatrix(pred_class, test_data$Potability)
+
+cm
+# calculate the F1 Score which is more useful than accuracy due to the focus on precision and recall.  (the harmonic mean of precision and recall)
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+## Deeper Decision Tree
+
+cp = 0.001 overfit
+
+```{r}
+
+set.seed(42)
+tree_model <- rpart(
+  Potability ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+
+
+
+
+table(Predicted = pred_class, Actual = test_data$Potability)
+
+mean(pred_class == test_data$Potability)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+cm <- confusionMatrix(pred_class, test_data$Potability)
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_tree <- 2 * (precision * recall) / (precision + recall)
+f1_tree
+```
+
+```{r}
+
+
+num_cols <- names(train_data)[
+  sapply(train_data, is.numeric)
+]
+
+datamedians <- train_data |> select(-Potability) |> sapply( function(x) {
+  if (is.numeric(x)) median(x, na.rm = TRUE)
+})
+
+for (num_cols in names(datamedians)) {
+  train_data[[num_cols]][is.na(train_data[[num_cols]])] <- datamedians[num_cols]
+  test_data[[num_cols]][is.na(test_data[[num_cols]])]  <- datamedians[num_cols]
+}
+
+colSums(is.na(train_data))
+colSums(is.na(test_data))
+
+
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+```
+
+## Random forest
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  Potability ~ ., 
+  data = train_data,
+  
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, test_data, type = "class")
+forrest_pred_prob <- predict(rf_model, test_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = test_data$Potability)
+
+mean(forrest_pred_class == test_data$Potability)
+
+cm <- confusionMatrix(forrest_pred_class, test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_rf <- 2 * (precision * recall) / (precision + recall)
+f1_rf
+
+varImpPlot(rf_model)
+
+
+```
+
+```         
+```
+
+## Random Forest with cleaner data
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  Potability ~ ., 
+  data = clean_train_data,
+  
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, clean_test_data, type = "class")
+forrest_pred_prob <- predict(rf_model, clean_test_data, type = "prob")
+
+rf_model
+
+#table(Predicted = forrest_pred_class, Actual = test_data$Potability)
+
+#mean(forrest_pred_class == test_data$Potability)
+
+cm <- confusionMatrix(forrest_pred_class, clean_test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_rf <- 2 * (precision * recall) / (precision + recall)
+f1_rf
+
+varImpPlot(rf_model)
+
+```
+
+```         
+
+  
+```
+
+## Adaboost
+
+```{r}
+
+#adaptive boosting model
+
+
+#ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+#ada_partdata[] <- lapply(ada_partdata, function(x) {
+#  if (is.character(x)) factor(x) else x
+#})
+
+##ada_partdata$default <- factor(ada_partdata$default, levels = c("no", "yes", "unknown"))
+  
+set.seed(42)
+
+
+
+ada_model <- boosting(
+  Potability ~ .,
+  data = train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(test_data$Potability)
+)
+
+cm <- confusionMatrix(ada_pred$class, test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_ada <- 2 * (precision * recall) / (precision + recall)
+f1_ada
+
+sort(ada_model$importance, decreasing = TRUE)
+```
+
+## Adaboost with "clean" data
+
+```{r}
+
+set.seed(42)
+
+
+
+ada_model <- boosting(
+  Potability ~ .,
+  data = clean_train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, clean_test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(clean_test_data$Potability)
+)
+
+cm <- confusionMatrix(ada_pred$class, clean_test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_ada <- 2 * (precision * recall) / (precision + recall)
+f1_ada
+
+sort(ada_model$importance, decreasing = TRUE)
+
+```
+
+## SVM: Radial Basis kernel
+
+```{r}
+
+
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+
+
+```
+
+radial f1
+
+```{r}
+
+
+
+num_cols <- sapply(train_data, is.numeric) 
+num_cols["Potability"] <- FALSE 
+
+train_scaled_vals <- scale(train_data[, num_cols])
+
+train_center <- attr(train_scaled_vals, "scaled:center")
+train_scale <- attr(train_scaled_vals, "scaled:scale")
+
+test_scaled_vals <- scale(test_data[, num_cols], center = train_center, scale = train_scale)
+
+train_scaled <- data.frame(train_scaled_vals, Potability = train_data$Potability)
+
+test_scaled <- data.frame(test_scaled_vals, Potability = test_data$Potability)
+
+
+
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_scaled,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_scaled, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_scaled$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+```
+
+```{r}
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = clean_train_data,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, clean_test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, clean_test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+```
+
+## SVM: Linear kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_lin_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "vanilladot"
+)
+
+SVM_lin_model
+
+
+
+lin_pred_class <- predict(SVM_lin_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(lin_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+linear f1 0.697559
+
+```         
+```
+
+## SVM: hyperbolic tangent sigmoid kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_tanh_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "tanhdot"
+)
+
+SVM_tanh_model
+
+
+
+tanh_pred_class <- predict(SVM_tanh_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(tanh_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+tanh f1 0.5557
+
+radial is the best
+
+## Cost Parameters SVM
+
+Cost Parameter based on accuracy
+
+```{r}
+
+
+```
+
+```{r}
+
+cost_values <- c(seq(from=1, to  = 26, by = 5))
+f1_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, test_data, type = "response")
+  #agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  #accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+   cm <- confusionMatrix(rbf_pred, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(cost_values, f1_values, type = "b")
+```
+
+cost parameter of 16 had the highest F1 score. This was used as the best SVM model to compare to the other models.
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot", C = 16
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+```{r}
+
+cost_values <- c(seq(from=1, to  = 26, by = 5))
+f1_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = clean_train_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, clean_test_data, type = "response")
+  #agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  #accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+   cm <- confusionMatrix(rbf_pred, clean_test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(cost_values, f1_values, type = "b")
+```
+
+## Logistic Regression
+
+```{r}
+
+
+lmodel <- glm(
+  Potability ~.,
+  data = train_scaled,
+  family = binomial
+)
+
+summary(lmodel)
+
+log_pred_class <- predict(lmodel, test_scaled)
+
+log_pred_class <- ifelse(pred_prob >= 0.5, 1, 0)
+log_pred_class <- factor(pred_class, levels = c(0, 1))
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(log_pred_class, test_scaled$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+```{r}
+
+
+lmodel <- glm(
+  Potability ~.,
+  data = train_data,
+  family = binomial, 
+)
+
+
+
+summary(lmodel)
+
+log_pred_class <- predict(lmodel, test_data)
+
+log_pred_class <- ifelse(pred_prob >= 0.5, 1, 0)
+log_pred_class <- factor(pred_class, levels = c(0, 1))
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(log_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+```{r}
+
+set.seed(42)
+
+log_train <- train_data
+log_test <- test_data
+
+log_train$Potability <- factor(log_train$Potability, levels = c(1, 0), labels = c("Yes", "No"))
+log_test$Potability <- factor(log_test$Potability, levels = c(1, 0), labels = c("Yes", "No"))
+
+
+#optimizing logistic regression with caret
+x <- log_train[, -which(names(log_train) == "Potability")]
+y <- log_train$Potability
+
+ctrl <- trainControl(
+  method = "cv",        
+  number = 20,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary ,
+  sampling = 'down' # 
+)
+
+# finding alpha and lambda
+glmnet_fit <- train(
+  Potability ~ ., 
+  data = log_train,
+  method = "glmnet",
+  trControl = ctrl,
+  tuneLength = 20,       
+  metric = "ROC"         
+)
+
+glmnet_fit
+glmnet_fit$bestTune
+
+
+log_pred_class <- predict(glmnet_fit,  log_test)
+
+
+
+
+
+cm <- confusionMatrix(log_pred_class, log_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+```{r}
+
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+train_data$Potability <- as.numeric(as.character(train_data$Potability))
+test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+
+num_cols <- sapply(train_data, is.numeric)
+
+train_scaled <- train_data
+test_scaled  <- test_data
+
+train_scaled <- scale(train_data[,num_cols])
+
+train_center <- attr(train_scaled, "scaled:center")
+train_scale <- attr(train_scaled, "scaled:scale")
+
+test_scaled <- scale(test_data,
+  center = train_center,
+  scale  = train_scale
+)
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+
+
+
+
+
+```
+
+```{r}
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+clean_train_data$Potability <- as.numeric(as.character(clean_train_data$Potability))
+clean_test_data$Potability  <- as.numeric(as.character(clean_test_data$Potability))
+
+
+#num_cols <- sapply(train_data, is.numeric)
+
+#train_scaled <- train_data
+#test_scaled  <- test_data
+
+#train_scaled <- scale(train_data[,num_cols])
+
+#train_center <- attr(train_scaled, "scaled:center")
+#train_scale <- attr(train_scaled, "scaled:scale")
+
+#test_scaled <- scale(test_data,
+#  center = train_center,
+#  scale  = train_scale
+#)
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = clean_train_data,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, clean_test_data) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, clean_test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+```{r}
+
+set.seed(42)
+
+
+
+hidden_layers <- c(seq(from=1, to  = 9, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+ neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic", hidden = x,
+  linear.output = FALSE
+)
+  neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+
+
+
+```
+
+```{r}
+
+set.seed(42)
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+hidden_layers <- c(seq(from=0, to  = 4, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+ neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic",
+  linear.output = FALSE,
+  if (x == 0) {
+     hidden = 9
+    
+  }
+  else{
+    hidden = c(9,x)
+  }
+  
+  
+)
+  neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+
+
+```
+
+```{r}
+
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic", hidden = c(9,1),
+  linear.output = FALSE,
+  threshold = 0.05
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+garson(neuralnet_model)   
+olden(neuralnet_model)    
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+reference:

@@ -133,40 +133,43 @@ head(partdata)
 unlink(temp_file)
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
 ## Basic data info
 
-```{summary(fulldata)}
+```{r}
 
+summary(fulldata)
 ```
+
+```         
 
 ```{}
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
 #converting yes to 1 and no to 0 for binary classification
@@ -223,10 +226,10 @@ specificity 0.1923
 
 kappa 0.2667
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
 ## 
@@ -258,7 +261,7 @@ forrest_pred_class <- predict(rf_model, test_data, type = "class")
 
 ```
 
-```{}
+```         
 ```
 
 ## 
@@ -302,7 +305,7 @@ ada_pred$class <- factor(
 
 ```
 
-```{}
+```         
 ```
 
 ## Remove features for all models
@@ -450,10 +453,10 @@ kappa 0.4944
 
 F1 0.713355
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
 ## Random forest
@@ -502,10 +505,10 @@ kappa 0.4894, sensitivity 0.8791, specificity 0.6105 accuracy 0.7446
 
 F1 0.7116969
 
-```{}
+```         
 ```
 
-```{}
+```         
 ```
 
 ```         
@@ -886,25 +889,25 @@ Tested several SVM kernels, compared their F1 score:
 
 Linear
 
-+-----+------------------------------+-----+-----------+----+
-|     |                              |     |           |    |
-+-----+------------------------------+-----+-----------+----+
-|     | SVM kernel                   |     | F1 score  |    |
-+-----+------------------------------+-----+-----------+----+
-|     |                              |     |           |    |
-+-----+------------------------------+-----+-----------+----+
-|     | Radial basis                 |     | 0.6991261 |    |
-+-----+------------------------------+-----+-----------+----+
-|     |                              |     |           |    |
-+-----+------------------------------+-----+-----------+----+
-|     | Linear                       |     | 0.697559  |    |
-+-----+------------------------------+-----+-----------+----+
-|     |                              |     |           |    |
-+-----+------------------------------+-----+-----------+----+
-|     | Hyperbolic tangent sigmoid   |     | 0.5557153 |    |
-+-----+------------------------------+-----+-----------+----+
-|     |                              |     |           |    |
-+-----+------------------------------+-----+-----------+----+
++--------+----------------------------+--------+-----------+--------+
+|        |                            |        |           |        |
++--------+----------------------------+--------+-----------+--------+
+|        | SVM kernel                 |        | F1 score  |        |
++--------+----------------------------+--------+-----------+--------+
+|        |                            |        |           |        |
++--------+----------------------------+--------+-----------+--------+
+|        | Radial basis               |        | 0.6991261 |        |
++--------+----------------------------+--------+-----------+--------+
+|        |                            |        |           |        |
++--------+----------------------------+--------+-----------+--------+
+|        | Linear                     |        | 0.697559  |        |
++--------+----------------------------+--------+-----------+--------+
+|        |                            |        |           |        |
++--------+----------------------------+--------+-----------+--------+
+|        | Hyperbolic tangent sigmoid |        | 0.5557153 |        |
++--------+----------------------------+--------+-----------+--------+
+|        |                            |        |           |        |
++--------+----------------------------+--------+-----------+--------+
 
 Radial was the selected kernel for SVM due to having the highest F1 score.  Then the cost parameter was optimized for accuracy. The cost parameter changes the width of the decision boundary and controls the penalty for misclassification. A cost value of 3 was found to maximize the F1 score.  So, it was used for training the SVM model.
 
@@ -913,49 +916,7 @@ A comparison of the metrics for each of the previously trained and the optimized
 <table>
 <tbody>
 <tr>
-<td><p>  </p></td>
 <td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Model</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Accuracy</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Sensitivity</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Specificity</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>kappa</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>F1</p>
-<p>   </p></td>
-<td><p>  </p></td>
-</tr>
-<tr>
-<td><p>  </p></td>
 <td></td>
 <td></td>
 <td></td>
@@ -970,34 +931,22 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>2 depth tree</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7338</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.5940</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8741</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4679</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6908636</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>Model</p></td>
+<td></td>
+<td><p>Accuracy</p></td>
+<td></td>
+<td><p>Sensitivity</p></td>
+<td></td>
+<td><p>Specificity</p></td>
+<td></td>
+<td><p>kappa</p></td>
+<td></td>
+<td><p>F1</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p>  </p></td>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
@@ -1012,34 +961,22 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>~12 depth   tree</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7471</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6284</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8662</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4944</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.713355</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>2 depth tree</p></td>
+<td></td>
+<td><p>0.7338</p></td>
+<td></td>
+<td><p>0.5940</p></td>
+<td></td>
+<td><p>0.8741</p></td>
+<td></td>
+<td><p>0.4679</p></td>
+<td></td>
+<td><p>0.6908636</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p>  </p></td>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
@@ -1054,34 +991,22 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Random Forest</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7486</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6198</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8777</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4973</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7116969</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>~12 depth tree</p></td>
+<td></td>
+<td><p>0.7471</p></td>
+<td></td>
+<td><p>0.6284</p></td>
+<td></td>
+<td><p>0.8662</p></td>
+<td></td>
+<td><p>0.4944</p></td>
+<td></td>
+<td><p>0.713355</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p>  </p></td>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
@@ -1096,34 +1021,22 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Tuned CV RF</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.717789</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6614</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8180</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4793</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.717789</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>Random Forest</p></td>
+<td></td>
+<td><p>0.7486</p></td>
+<td></td>
+<td><p>0.6198</p></td>
+<td></td>
+<td><p>0.8777</p></td>
+<td></td>
+<td><p>0.4973</p></td>
+<td></td>
+<td><p>0.7116969</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p>  </p></td>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
@@ -1138,34 +1051,22 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>Adaptive boosting</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7493</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6392</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8597</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4987</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7185484</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>Tuned CV RF</p></td>
+<td></td>
+<td><p>0.717789</p></td>
+<td></td>
+<td><p>0.6614</p></td>
+<td></td>
+<td><p>0.8180</p></td>
+<td></td>
+<td><p>0.4793</p></td>
+<td></td>
+<td><p>0.717789</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p>  </p></td>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
@@ -1180,34 +1081,52 @@ A comparison of the metrics for each of the previously trained and the optimized
 <td></td>
 </tr>
 <tr>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>SVM</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7417</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.6112</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.8727</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.4837</p>
-<p>   </p></td>
-<td><p>   </p></td>
-<td><p>   </p>
-<p>0.7032604</p>
-<p>   </p></td>
-<td><p>  </p></td>
+<td></td>
+<td><p>Adaptive boosting</p></td>
+<td></td>
+<td><p>0.7493</p></td>
+<td></td>
+<td><p>0.6392</p></td>
+<td></td>
+<td><p>0.8597</p></td>
+<td></td>
+<td><p>0.4987</p></td>
+<td></td>
+<td><p>0.7185484</p></td>
+<td></td>
 </tr>
 <tr>
-<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td><p>SVM</p></td>
+<td></td>
+<td><p>0.7417</p></td>
+<td></td>
+<td><p>0.6112</p></td>
+<td></td>
+<td><p>0.8727</p></td>
+<td></td>
+<td><p>0.4837</p></td>
+<td></td>
+<td><p>0.7032604</p></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
 <td></td>
 <td></td>
 <td></td>
