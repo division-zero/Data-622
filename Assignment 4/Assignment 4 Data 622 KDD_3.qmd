@@ -1,0 +1,3264 @@
+---
+title: "Data 622 Assignment 4"
+author: "Keith DeNivo"
+format: pdf
+editor: visual
+---
+
+## 
+
+## 
+
+# Determining water potability
+
+For my job I use analytical chemistry techniques to identify and quantify toxic substances that are in drinking water in New York State. Examples of these substances are industrial waste products and poisons like pesticides.  Federal and state laws regulate how often water needs to be tested and the maximum concentration of the chemicals that are allowed for human consumption.  If a drinking water supply has one of these toxic substances above the threshold, then the water is deemed unsafe to drink and the supplier must correct the problem or face legal repercussions. 
+
+The dataset selected has features of water quality indicators.  The target variable is a class of whether the water is potable, or it is not potable. It would be helpful to have simple indicators that would help determine whether water is safe to drink or not.  Currently there are several costly methods that require specialized and expensive equipment in order to determine if the not dangerous.  Many methods require the use of mass spectrometers which are expensive and need laborious maintenance and specialized skills.  Many of the tests listed on the dataset require relatively inexpensive measures, such as pH, turbidity, and conductivity. So, if there were a few quick tests that could indicate that water is safe with good certainty, that potentially could save a lot of communities especially in resource limited areas.
+
+In general, these types of models could be a good flag for quality control.  If companies are selling food or liquids to consume, it would be good to determine from a only some tests whether a batch is good or not.  It may be utilized to raise some flags for the product from a few tests even if those few tests are in compliance with regulatory standards. So building a model to help interpret the quality of the consumable from easier and quicker tests may help protect people and save money.
+
+For the dataset there are 9 water quality indicators and the target class.  Each variable/feature has very different units and are on very different scales.  Features such as solids, hardness, and sulfates, their values were in the hundreds to thousands.  The rest had values that were significantly less than that.  The there were several features with missing values.   For some methods such as decision trees rescaling is not as critical.  For the data was rescaled in order to work with other machine learning algorithms such as SVM neural networks. Though with the exception of neural networks the data that was not scaled often produced models that had better or similar performance to models where the data was scaled.
+
+Roughly 1/3 of the data had missing values.  Most of the models run into issues when there are missing values. To prevent this, tthe main way I decided to fix it was to impute the missing values with the median of each feature, specifically from the training data set.  The features are not well correlated, so they are largely independent of each other.
+
+Outliers were determined using the Mahalanobis distances, which is usually used for more correlated data. Ultimately, for analysis, the outliers were not removed.  The outliers are good indicators of when water will not be potable since they would be outside the acceptable thresholds. Using a Chi-square of 97.5% there were \~140 outliers out of the 3276 observations.  Some models were trained with those outliers removed and without them being removed for comparison. For most of the features The classes are not separated well.  They have similar means and standard deviations.  One notiable exception is pH which the potable water is more concentrated around the mean than the nonpotable water is.  So visually there is at least a little separation between the classes with the nonpotable water surrounding the other. 
+
+Models were built from the modifieddatasets below
+
+Data tested:
+
+Train_data = not scaled median imputed train data
+
+Test_data = not scaled median imputed train data
+
+Train_scaled=  scaled median imputed train data
+
+Test_scaled=  scaled median imputed train data
+
+clean_train_data=  scaled, MICE imputed, outlier removed train data
+
+clean_trest_data=  scaled, MICE imputed, outlier removed test data
+
+Target Variable is water potability class 1 , 0
+
+## DT, RF, ADABOOST, SVM, Neural Network
+
+```{r}
+#| echo: false
+#| include: false
+
+library(MASS)
+library(broom)
+library(marginaleffects)
+library(cowplot)
+library(psych)
+library(tidyverse)
+library(fpp3)
+library(randomForest)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caTools)
+library(gbm)
+library(mlbench)
+library(ipred)
+library(class)
+library(kernlab)
+library(partykit)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+library(corrplot)
+library(doParallel)
+library(writexl)
+library(rcompanion)
+library(dplyr)
+library(DescTools)
+library(DataExplorer)
+library(skimr)
+library(GGally)
+library(ggrepel)
+library(adabag)
+library(neuralnet)
+library(mice)
+library(glmnet)
+library(NeuralNetTools)
+library(nnet)
+```
+
+## Read in Data
+
+```{r}
+file_url <- "https://raw.githubusercontent.com/division-zero/Data-622/refs/heads/main/Assignment%204/archive%20(8)/water_potability.csv"
+# Download the file to a temporary location
+temp_file <- tempfile(fileext = ".csv")
+download.file(file_url, destfile = temp_file, mode = "wb")
+# Read the csv file
+fulldata <- read.delim(file_url, sep = ",", header = TRUE, stringsAsFactors = FALSE)
+# View the data
+head(fulldata)
+# Clean up the temporary file
+unlink(temp_file)
+
+
+```
+
+Potability is the target class variable. Features include: Sulfate, Conductivity, Total Organic Carbon, hardness, solids, chloramines, pH, trihalomethanes, turbidity.
+
+## Basic data info
+
+```{r}
+
+summary(fulldata)
+
+
+colSums(is.na(fulldata)) #see how many NA values
+
+cor_matrix <- cor(fulldata, use = "complete.obs")
+
+#round(cor_matrix, 3)
+
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+# 
+
+Mean, median, IQR displayed. pH has 491 missing values, sulfate has 781 missing values, trihalomethanes has 162 missing values. Chloramines and Solids have a large spread (0.352, to 13.127) and (321 to 61227) respectfully. Features are spread relatively symmetrically around their means despite there being two classes.
+
+## 
+
+```{r}
+
+
+#Boxplots of Columns
+
+
+for (col in names(fulldata)) {
+  p <- ggplot(fulldata, aes(y = .data[[col]])) +
+    geom_boxplot(fill = "steelblue", outlier.color = "red") +
+    labs(title = paste("Boxplot of", col), y = col) +
+    theme_minimal()
+  
+  print(p)  # prints each plot in the viewer
+}
+
+#compare the counts of potable vs non-potable
+plot_bar(fulldata$Potability)
+
+
+```
+
+pH has samples at their physically possible max and min of 0 and 14.
+
+This is a slightly imbalanced dataset with around 40% of the water sampled is potable and 60% being non-potable.
+
+## Outliers
+
+```{r}
+set.seed(42)
+
+#impute the original dataset with predicitve mean matching
+X <- fulldata[sapply(fulldata, is.numeric)] 
+imputed <- mice(X, m = 1, method = "pmm", maxit = 5) 
+X <- complete(imputed)
+
+#data scaled 
+X_scaled <- scale(X)
+#back to data frame
+X <- data.frame(X_scaled)
+X$Potability = fulldata$Potability 
+#remove outliers
+md <-  mahalanobis(X_scaled, colMeans(X_scaled), cov(X_scaled)) 
+outliers <- which(md > qchisq(0.975, df=ncol(X_scaled))) 
+outliers
+length(outliers)
+
+#data without outliers, and is scaled and imputed.
+
+clean_data <- X[-outliers, ]
+clean_data <- na.omit(clean_data)
+clean_data$Potability <- factor(clean_data$Potability, levels = c(0, 1))
+clean_data$Potability <- relevel(clean_data$Potability, ref = "1")
+```
+
+created "clean_data". It was imputed using multiple imputation by chained equations with method predictive mean matching. This data was then scaled and outliers were removed using the Mahalanobis distances, which is usually used for more correlated data. Using a Chi-square of 97.5% there were \~140 outliers out of the 3276 observations. So "clean_data" has outliers removed and has been imputed.
+
+## Train/Test Split
+
+```{r}
+
+set.seed(42)
+#full dataset split 70%, 30% training and testing
+train_index <- sample(seq_len(nrow(fulldata)), size = 0.7 * nrow(fulldata))
+train_data <- fulldata[train_index, ]
+test_data  <- fulldata[-train_index, ]
+
+#same indexes were used to create the clean test data set
+clean_train_data <- clean_data[train_index, ]
+clean_test_data <- clean_data[-train_index, ]
+
+#some index were mismatched outliers removed.
+clean_train_data <- na.omit(clean_train_data)
+clean_test_data <- na.omit(clean_test_data)
+
+
+
+#convert target class as a factor which is required for classification in certain models
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+clean_data$Potability <- factor(clean_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+#making 1  the positive class
+clean_data$Potability <- relevel(clean_data$Potability, ref = "1")
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+#checking to see if clean_train_data could potentially be used with test_data
+same_rows <- intersect(clean_train_data, test_data)
+n_same <- nrow(same_rows)
+n_same
+
+
+
+```
+
+Two sets of data frames: one that was previously imputed and outliers removed: clean_train_data and clean_test_data.
+
+The other set of data frames: train_data, test_data, were split before any pre-processing.
+
+```{r}
+
+#testing removal of features
+#removal of features
+#clean_test_data <- clean_test_data |> dplyr::select(-Trihalomethanes, -Conductivity, - Turbidity, - Organic_carbon)
+
+#clean_train_data <- clean_train_data |> dplyr::select(-Trihalomethanes, -Conductivity, - Turbidity, - Organic_carbon)
+```
+
+## Violin plot visualization
+
+```{r}
+
+#violin plots of the original data
+numeric_long <- fulldata  |> dplyr::select(-Potability, -Solids, -Conductivity) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+ggplot(numeric_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+
+numeric_long <- fulldata  |> dplyr::select( Solids, Conductivity) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+ggplot(numeric_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+
+#Potability should not be scaled
+num_cols <- sapply(train_data, is.numeric) 
+num_cols["Potability"] <- FALSE 
+
+#scale all the columns except potability
+train_scaled_vals <- scale(train_data[, num_cols])
+
+#apply the scale from the training data to the test data
+train_center <- attr(train_scaled_vals, "scaled:center") #pull out the center of the scaled data
+train_scale <- attr(train_scaled_vals, "scaled:scale") #apply the scaling factor
+
+#scale the test data using the scaling from the train data
+test_scaled_vals <- scale(test_data[, num_cols], center = train_center, scale = train_scale)
+
+#add the potability column back to training data and scale data 
+train_scaled <- data.frame(train_scaled_vals, Potability = train_data$Potability)
+
+test_scaled <- data.frame(test_scaled_vals, Potability = test_data$Potability)
+
+#checking the distributions to see that they are on the same scale.
+
+numeric_scaled_long <- train_scaled  |> dplyr::select(-Potability) |> 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") 
+
+
+#distributions on the same scale
+ggplot(numeric_scaled_long, aes(x = Variable, y = Value)) +
+geom_violin(fill = "skyblue", color = "black") +
+  #scale_y_continuous(limits = c(0, 500)) +
+labs(title = "",
+x = "",
+y = "") +
+theme_minimal()+
+  coord_flip()
+```
+
+From the scaled data, it becomes clearer to see that pH. sulfate trihalomethanes are concentrated around their mean. Solids is right skewed. The features are uni-modal.
+
+```{r}
+
+# number of rows with missing values
+sum(rowSums(is.na(fulldata)) > 0)
+
+
+```
+
+Around one third of the dataset has rows with missing values. To avoid large data loss, the rows were kept and the "not clean" training and test data set with imputed.
+
+```{r}
+
+
+
+
+
+
+
+
+```
+
+## Imputation
+
+Medians from training data set used to impute the training (dirty) and test data set
+
+```{r}
+
+#selecting the features that are not a factor (potability)
+num_cols <- names(train_data)[
+  sapply(train_data, is.numeric)
+]
+#determine the median of each column and imput the column
+datamedians <- train_data |> select(-Potability) |> sapply( function(x) {
+  if (is.numeric(x)) median(x, na.rm = TRUE)
+})
+
+for (num_cols in names(datamedians)) {
+  train_data[[num_cols]][is.na(train_data[[num_cols]])] <- datamedians[num_cols]
+  test_data[[num_cols]][is.na(test_data[[num_cols]])]  <- datamedians[num_cols]
+}
+
+#check if there are any more missing values
+colSums(is.na(train_data))
+colSums(is.na(test_data))
+
+#insure that the potability column remains a factor.  with 1 being the positive level
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+```
+
+columns successfully imputed.
+
+## Visualizing the full data set
+
+```{r}
+
+datapair <- fulldata |> ggpairs(
+  aes(color = Potability, fill = Potability)
+)
+
+#visulize the data spread of the features of the classes
+datapair
+
+#describe(fulldata)
+skim(fulldata)
+```
+
+```         
+
+ggpairs was used to visualize the distribution of the features of both classes.  It becomes clear to see that the classes are not well separated.  Their means are all roughly on to of each other.  Only some of the distributions are more wide spread making the edge cases to typically be nonpotable.  
+
+```
+
+## 
+
+```         
+```
+
+```         
+```
+
+## 
+
+```{r}
+
+
+
+```
+
+```         
+```
+
+## 
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+```
+
+# Train and evaluate the Models
+
+Several models were tested before settling on a few that may work. Summary of models at end.
+
+## Decision Trees
+
+```{r}
+set.seed(42)
+#decision tree model
+
+tree_model <- rpart(
+  Potability ~ ., 
+  data = train_data, #not scaled
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+pred_prob <- predict(tree_model, test_data, type = "prob")
+
+
+
+#table(Predicted = pred_class, Actual = eqtest_data$term_deposit_factor)
+
+#mean(pred_class == eqtest_data$term_deposit_factor)
+
+
+
+
+#confusion matrix contains most metrics for classifiers
+cm <- confusionMatrix(pred_class, test_data$Potability)
+
+cm
+# calculate the F1 Score which is more useful than accuracy due to the focus on precision and recall.  (the harmonic mean of precision and recall)
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+## Deeper Decision Tree
+
+cp = 0.001 overfit
+
+```{r}
+
+set.seed(42)
+tree_model <- rpart(
+  Potability ~ ., 
+  data = train_data,
+  method = "class",
+  control = rpart.control(
+    cp = 0.001,
+    minsplit = 30,
+    maxdepth = 20
+  )
+)
+
+tree_model
+
+rpart.plot(tree_model)
+
+pred_class <- predict(tree_model, test_data, type = "class")
+
+
+
+
+table(Predicted = pred_class, Actual = test_data$Potability)
+
+mean(pred_class == test_data$Potability)
+
+
+
+#confusionMatrix(pred_class$class, actual, positive = "1")
+cm <- confusionMatrix(pred_class, test_data$Potability)
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_tree <- 2 * (precision * recall) / (precision + recall)
+f1_tree
+```
+
+adding deeper decision tree complexity improves the performance.
+
+```{r}
+
+#had issues below with data not being set up correctly repeated code to insure that the data was correct
+num_cols <- names(train_data)[
+  sapply(train_data, is.numeric)
+]
+
+datamedians <- train_data |> select(-Potability) |> sapply( function(x) {
+  if (is.numeric(x)) median(x, na.rm = TRUE)
+})
+
+for (num_cols in names(datamedians)) {
+  train_data[[num_cols]][is.na(train_data[[num_cols]])] <- datamedians[num_cols]
+  test_data[[num_cols]][is.na(test_data[[num_cols]])]  <- datamedians[num_cols]
+}
+
+colSums(is.na(train_data))
+colSums(is.na(test_data))
+
+
+fulldata$Potability <- factor(fulldata$Potability, levels = c(0, 1))
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+
+#making 1  the positive class
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+```
+
+## Random forest
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  Potability ~ ., 
+  data = train_data,
+  
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, test_data, type = "class")
+forrest_pred_prob <- predict(rf_model, test_data, type = "prob")
+
+rf_model
+
+table(Predicted = forrest_pred_class, Actual = test_data$Potability)
+
+mean(forrest_pred_class == test_data$Potability)
+
+cm <- confusionMatrix(forrest_pred_class, test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_rf <- 2 * (precision * recall) / (precision + recall)
+f1_rf
+
+varImpPlot(rf_model)
+
+
+```
+
+```         
+Ensemble methods like Random forest perform better than single decision trees.
+```
+
+## Random Forest with cleaner data
+
+```{r}
+
+set.seed(42)
+#random forest model
+
+rf_model <- randomForest(
+  Potability ~ ., 
+  data = clean_train_data,
+  
+  ntree = 500,
+  importance = TRUE
+)
+
+forrest_pred_class <- predict(rf_model, clean_test_data, type = "class")
+forrest_pred_prob <- predict(rf_model, clean_test_data, type = "prob")
+
+rf_model
+
+#table(Predicted = forrest_pred_class, Actual = test_data$Potability)
+
+#mean(forrest_pred_class == test_data$Potability)
+
+cm <- confusionMatrix(forrest_pred_class, clean_test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_rf <- 2 * (precision * recall) / (precision + recall)
+f1_rf
+
+varImpPlot(rf_model)
+
+```
+
+```         
+
+  training with data without outliers decreases accuracy, kappa, and F1 for both ensemble methods adaboost and random forest (RF). Adaboost and RF have similar metrics.
+```
+
+## Adaboost
+
+```{r}
+
+#adaptive boosting model
+
+
+#ada_partdata <-partdata |>  dplyr::select(-y, -term_deposit, -default)
+#ada_partdata[] <- lapply(ada_partdata, function(x) {
+#  if (is.character(x)) factor(x) else x
+#})
+
+##ada_partdata$default <- factor(ada_partdata$default, levels = c("no", "yes", "unknown"))
+  
+set.seed(42)
+
+
+
+ada_model <- boosting(
+  Potability ~ .,
+  data = train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(test_data$Potability)
+)
+
+cm <- confusionMatrix(ada_pred$class, test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_ada <- 2 * (precision * recall) / (precision + recall)
+f1_ada
+
+sort(ada_model$importance, decreasing = TRUE)
+```
+
+## Adaboost with "clean" data
+
+```{r}
+
+set.seed(42)
+
+
+
+ada_model <- boosting(
+  Potability ~ .,
+  data = clean_train_data,
+  mfinal = 100,     # number of boosting iterations
+  boos = TRUE
+)
+
+#ada_model
+
+ada_pred <- predict(ada_model, clean_test_data)
+
+ada_pred$class <- factor(
+  ada_pred$class,
+  levels = levels(clean_test_data$Potability)
+)
+
+cm <- confusionMatrix(ada_pred$class, clean_test_data$Potability)
+
+cm
+
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_ada <- 2 * (precision * recall) / (precision + recall)
+f1_ada
+
+sort(ada_model$importance, decreasing = TRUE)
+
+```
+
+## SVM: Radial Basis kernel
+
+```{r}
+
+
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+
+
+```
+
+SVM radial performance is similar to the ensemble methods adaboost and RF.
+
+```{r}
+
+
+
+num_cols <- sapply(train_data, is.numeric) 
+num_cols["Potability"] <- FALSE 
+
+train_scaled_vals <- scale(train_data[, num_cols])
+
+train_center <- attr(train_scaled_vals, "scaled:center")
+train_scale <- attr(train_scaled_vals, "scaled:scale")
+
+test_scaled_vals <- scale(test_data[, num_cols], center = train_center, scale = train_scale)
+
+train_scaled <- data.frame(train_scaled_vals, Potability = train_data$Potability)
+
+test_scaled <- data.frame(test_scaled_vals, Potability = test_data$Potability)
+
+
+
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_scaled,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_scaled, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_scaled$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+```
+
+There was no noticable difference between using scaled data to train and non scaled data to train SVM
+
+```{r}
+
+set.seed(42)
+#SVM model radial basis kernel
+
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = clean_train_data,
+  kernel = "rbfdot"
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, clean_test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, clean_test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+
+```
+
+performance of SVM decreased with outliers removed.
+
+## SVM: Linear kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_lin_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "vanilladot"
+)
+
+SVM_lin_model
+
+
+
+lin_pred_class <- predict(SVM_lin_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(lin_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+```         
+```
+
+## SVM: hyperbolic tangent sigmoid kernel
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_tanh_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "tanhdot"
+)
+
+SVM_tanh_model
+
+
+
+tanh_pred_class <- predict(SVM_tanh_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(tanh_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+both sigmoid and linear kernels performed worse than radial
+
+radial is the best
+
+## Cost Parameters SVM
+
+Cost Parameter based on f1 score
+
+```{r}
+
+
+```
+
+```{r}
+
+#loop and plot the cost values vs f1 score
+cost_values <- c(seq(from=1, to  = 26, by = 5))
+f1_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, test_data, type = "response")
+  #agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  #accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+   cm <- confusionMatrix(rbf_pred, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(cost_values, f1_values, type = "b")
+```
+
+cost parameter of 16 had the highest F1 score. This was used as the best SVM model to compare to the other models.
+
+```{r}
+
+set.seed(42)
+#SVM model
+
+
+
+SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = train_data,
+  kernel = "rbfdot", C = 16
+)
+
+SVM_rbf_model
+
+
+
+rbf_pred_class <- predict(SVM_rbf_model, test_data, type = "response")
+
+
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(rbf_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+SVM radial kernel cost value 16 meaning that there is a higher penalty for misclassifcation and will have a narrower margin for the hyperplanes. results in better predictions in this case.
+
+```{r}
+
+cost_values <- c(seq(from=1, to  = 26, by = 5))
+f1_values <- sapply(cost_values, function(x){
+  SVM_rbf_model <- ksvm(
+  Potability ~ ., 
+  data = clean_train_data,
+  kernel = "rbfdot", C = x
+)
+  rbf_pred <- predict(SVM_rbf_model, clean_test_data, type = "response")
+  #agree <- ifelse(rbf_pred == eqtest_data$term_deposit_factor, 1, 0)
+  #accuracy <-  sum(agree) / nrow(eqtest_data)
+  
+   cm <- confusionMatrix(rbf_pred, clean_test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+  return (f1)
+})
+
+plot(cost_values, f1_values, type = "b")
+```
+
+## Logistic Regression
+
+```{r}
+
+
+lmodel <- glm(
+  Potability ~.,
+  data = train_scaled,
+  family = binomial
+)
+
+summary(lmodel)
+
+log_pred_class <- predict(lmodel, test_scaled)
+
+log_pred_class <- ifelse(pred_prob >= 0.5, 1, 0)
+log_pred_class <- factor(pred_class, levels = c(0, 1))
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(log_pred_class, test_scaled$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+```{r}
+
+
+lmodel <- glm(
+  Potability ~.,
+  data = train_data,
+  family = binomial, 
+)
+
+
+
+summary(lmodel)
+
+log_pred_class <- predict(lmodel, test_data)
+
+log_pred_class <- ifelse(pred_prob >= 0.5, 1, 0)
+log_pred_class <- factor(pred_class, levels = c(0, 1))
+
+
+#table(Predicted = rbf_pred_class, Actual = eqtest_data$term_deposit_factor)
+
+
+
+cm <- confusionMatrix(log_pred_class, test_data$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+```{r}
+
+set.seed(42)
+
+log_train <- train_data
+log_test <- test_data
+
+log_train$Potability <- factor(log_train$Potability, levels = c(1, 0), labels = c("Yes", "No"))
+log_test$Potability <- factor(log_test$Potability, levels = c(1, 0), labels = c("Yes", "No"))
+
+
+#optimizing logistic regression with caret
+x <- log_train[, -which(names(log_train) == "Potability")]
+y <- log_train$Potability
+
+ctrl <- trainControl(
+  method = "cv",        
+  number = 20,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary ,
+  sampling = 'down' # 
+)
+
+# finding alpha and lambda
+glmnet_fit <- train(
+  Potability ~ ., 
+  data = log_train,
+  method = "glmnet",
+  trControl = ctrl,
+  tuneLength = 20,       
+  metric = "ROC"         
+)
+
+glmnet_fit
+glmnet_fit$bestTune
+
+
+log_pred_class <- predict(glmnet_fit,  log_test)
+
+
+
+
+
+cm <- confusionMatrix(log_pred_class, log_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+checked logistic regression and tuning the alpha (regularization) and lambda (penalty). with alpha being 0 for Ridge and 1 for lasso. model performed best with lasso and a low alpha of 0.007.
+
+```{r}
+
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+train_data$Potability <- as.numeric(as.character(train_data$Potability))
+test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+
+num_cols <- sapply(train_data, is.numeric)
+
+train_scaled <- train_data
+test_scaled  <- test_data
+
+train_scaled <- scale(train_data[,num_cols])
+
+train_center <- attr(train_scaled, "scaled:center")
+train_scale <- attr(train_scaled, "scaled:scale")
+
+test_scaled <- scale(test_data,
+  center = train_center,
+  scale  = train_scale
+)
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+train_data$Potability <- factor(train_data$Potability, levels = c(0, 1))
+test_data$Potability <- factor(test_data$Potability, levels = c(0, 1))
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+test_data$Potability <- relevel(test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+
+
+
+
+
+```
+
+neural net hidden layer 1 poor kappa and f1
+
+```{r}
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+clean_train_data$Potability <- as.numeric(as.character(clean_train_data$Potability))
+clean_test_data$Potability  <- as.numeric(as.character(clean_test_data$Potability))
+
+
+#num_cols <- sapply(train_data, is.numeric)
+
+#train_scaled <- train_data
+#test_scaled  <- test_data
+
+#train_scaled <- scale(train_data[,num_cols])
+
+#train_center <- attr(train_scaled, "scaled:center")
+#train_scale <- attr(train_scaled, "scaled:scale")
+
+#test_scaled <- scale(test_data,
+#  center = train_center,
+#  scale  = train_scale
+#)
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = clean_train_data,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, clean_test_data) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, clean_test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+f1
+```
+
+data with outliers removed or not scaled produced poor neural networks.
+
+```{r}
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_data,
+  act.fct = "logistic", hidden = c(1),
+  linear.output = FALSE
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_data) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+clean_train_data$Potability <- factor(clean_train_data$Potability, levels = c(0, 1))
+clean_test_data$Potability <- factor(clean_test_data$Potability, levels = c(0, 1))
+clean_train_data$Potability <- relevel(clean_train_data$Potability, ref = "1")
+clean_test_data$Potability <- relevel(clean_test_data$Potability, ref = "1")
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+```
+
+```{r}
+num_cols <- sapply(train_data, is.numeric) 
+num_cols["Potability"] <- FALSE 
+
+train_scaled_vals <- scale(train_data[, num_cols])
+
+train_center <- attr(train_scaled_vals, "scaled:center")
+train_scale <- attr(train_scaled_vals, "scaled:scale")
+
+test_scaled_vals <- scale(test_data[, num_cols], center = train_center, scale = train_scale)
+
+train_scaled <- data.frame(train_scaled_vals, Potability = train_data$Potability)
+
+test_scaled <- data.frame(test_scaled_vals, Potability = test_data$Potability)
+
+```
+
+```{r}
+
+set.seed(42)
+
+
+
+#hidden_layers <- c(seq(from=2, to  = 9, by = 1))
+#f1_values <- sapply(hidden_layers, function(x){
+# neural_model <- neuralnet(
+ # Potability ~ . , 
+#  data = train_scaled,
+#  act.fct = "logistic", hidden = x,
+ # linear.output = FALSE
+#)
+ # neural_prob <- predict(neural_model, test_scaled) [,1]
+
+#neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+#neural_class <- factor(neural_class, levels = c(0,1))
+#neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+#cm <- confusionMatrix(neural_class, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+#precision <- cm$byClass["Pos Pred Value"]
+#recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+#f1 <- 2 * (precision * recall) / (precision + recall)
+  
+ # return (f1)
+#})
+
+#plot(hidden_layers, f1_values, type = "b")
+
+
+
+```
+
+finding the optimal amount of nodes in a layer
+
+```{r}
+
+set.seed(42)
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+#hidden_layers <- c(seq(from=0, to  = 2, by = 1))
+#f1_values <- sapply(hidden_layers, function(x){
+ #neural_model <- neuralnet(
+  #Potability ~ . , 
+  #data = train_scaled,
+  #act.fct = "logistic",
+  #linear.output = FALSE,
+  #if (x == 0) {
+   #  hidden = 9
+    
+  #}
+  #else{
+   # hidden = c(9,x)
+  #}
+  
+  
+#)
+ # neural_prob <- predict(neural_model, test_scaled) [,1]
+
+#neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+#neural_class <- factor(neural_class, levels = c(0,1))
+#neural_class <- relevel(neural_class, ref = "1")
+
+
+#cm <- confusionMatrix(neural_class, test_data$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+#precision <- cm$byClass["Pos Pred Value"]
+#recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+#f1 <- 2 * (precision * recall) / (precision + recall)
+  
+ # return (f1)
+#})
+
+#plot(hidden_layers, f1_values, type = "b")
+
+
+```
+
+```{r}
+
+
+
+set.seed(42)
+#neural network
+
+
+
+neural_model <- neuralnet(
+  Potability ~ . , 
+  data = train_scaled,
+  act.fct = "logistic", hidden = c(9,1),
+  linear.output = FALSE,
+  threshold = 0.01
+)
+
+plot(neural_model)
+#neural_model
+
+
+
+
+
+neural_prob <- predict(neural_model, test_scaled) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+cm <- confusionMatrix(neural_class, test_data$Potability)
+
+cm
+
+
+
+#garson(neural_model)   
+#olden(neural_model, out_var = 1)
+#olden(neural_model, out_var = 0)
+
+
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1_svm <- 2 * (precision * recall) / (precision + recall)
+f1_svm
+
+```
+
+adding a second layer imporved iperformance slightly.
+
+remove some features
+
+```{r}
+
+#train_neural <- train_scaled |> dplyr::select(-Turbidity, - Sulfate, -Conductivity)
+#test_neural <- test_scaled |> dplyr::select(-Turbidity, - Sulfate, -Conductivity)
+#set.seed(42)
+#neural network
+
+
+
+
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+#hidden_layers <- c(seq(from=1, to  = 4, by = 1))
+#f1_values <- sapply(hidden_layers, function(x){
+# neural_model <- neuralnet(
+ # Potability ~ . , 
+ # data = train_neural,
+#  act.fct = "logistic",
+#  linear.output = FALSE,
+ # threshold = 0.01,
+ 
+#   hidden = c(x)
+  
+  
+  
+#)
+# neural_prob <- predict(neural_model, test_neural) [,1]
+
+#neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+#neural_class <- factor(neural_class, levels = c(0,1))
+#neural_class <- relevel(neural_class, ref = "1")
+
+
+#cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+#precision <- cm$byClass["Pos Pred Value"]
+#recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+#f1 <- 2 * (precision * recall) / (precision + recall)
+  
+ # return (f1)
+#})
+
+#plot(hidden_layers, f1_values, type = "b")
+```
+
+```{r}
+
+
+
+set.seed(42)
+#neural network
+
+
+
+
+#train_data$Potability <- as.numeric(as.character(train_data$Potability))
+#test_data$Potability  <- as.numeric(as.character(test_data$Potability))
+
+#hidden_layers <- c(seq(from=0, to  = 3, by = 1))
+#f1_values <- sapply(hidden_layers, function(x){
+ #neural_model <- neuralnet(
+  #Potability ~ . , 
+  #data = train_neural,
+  #act.fct = "logistic",
+  #linear.output = FALSE,
+  #threshold = 0.05,
+# if (x == 0){
+ #   hidden = 3
+# }
+ # else{
+  #  hidden = c(3,x)
+#  }
+  
+#)
+ # neural_prob <- predict(neural_model, test_neural) [,1]
+
+#neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+#neural_class <- factor(neural_class, levels = c(0,1))
+#neural_class <- relevel(neural_class, ref = "1")
+
+
+#cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+#precision <- cm$byClass["Pos Pred Value"]
+#recall    <- cm$byClass["Sensitivity"]
+
+
+
+
+#f1 <- 2 * (precision * recall) / (precision + recall)
+  
+ # return (f1)
+#})
+
+#plot(hidden_layers, f1_values, type = "b")
+```
+
+```{r}
+
+
+#set.seed(42)
+#neural network
+
+
+
+#neural_model <- neuralnet(
+ # Potability ~ . , 
+#  data = train_neural,
+ # act.fct = "logistic", hidden = c(3,1),
+#  linear.output = FALSE,
+ # threshold = 0.05
+#)
+
+#plot(neural_model)
+#neural_model
+
+
+
+
+
+#neural_prob <- predict(neural_model, test_neural) [,1]
+
+#neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+#neural_class <- factor(neural_class, levels = c(0,1))
+#neural_class <- relevel(neural_class, ref = "1")
+
+
+
+
+#cm <- confusionMatrix(neural_class, test_neural$Potability)
+
+#cm
+
+
+
+#garson(neural_model)   
+#olden(neural_model, out_var = 1)
+#olden(neural_model, out_var = 0)
+
+
+
+#calculate f1 from precision and recall
+#precision <- cm$byClass["Pos Pred Value"]
+#recall    <- cm$byClass["Sensitivity"]
+
+
+#f1 <- 2 * (precision * recall) / (precision + recall)
+#f1
+```
+
+different structure of neural network 9, 1 vs 3,1. 3,1 had poorer accuracy but a higher f1.
+
+switched to the nnet package.
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+set.seed(42)
+
+hidden_layers <- c(seq(from=1, to  = 10, by = 1))
+f1_values <- sapply(hidden_layers, function(x){
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = x,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+#nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+#cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+print(cat('layer',x,'Accuracy',cm$overall["Accuracy"],'kappa',cm$overall["Kappa"],'f1',f1,'precision',precision))
+  return (f1)
+})
+
+plot(hidden_layers, f1_values, type = "b")
+```
+
+found that 3 or 9 nodes may perform best.
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+set.seed(42)
+
+
+
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = 3,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+f1
+```
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+
+
+set.seed(62)
+
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = 9,                
+  maxit = 200,             
+  decay = 0.01             
+)
+
+
+nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+f1
+```
+
+```{r}
+
+
+neural_train <- train_scaled
+neural_test <- test_scaled
+
+
+neural_train$Potability <- factor(train_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+neural_test$Potability <- factor(test_scaled$Potability, levels = c(0,1), labels = c("No","Yes"))
+
+set.seed(42)
+
+
+
+nn_model <- nnet(
+  Potability ~ .,          
+  data = neural_train,     
+  size = 3,                
+  maxit = 200,             
+  decay = 0.001             
+)
+
+
+nn_model
+
+#plot(nn_model)
+
+
+
+
+
+
+neural_prob <- predict(nn_model, neural_test) [,1]
+
+neural_class <- ifelse(neural_prob >= 0.5, 1, 0)
+
+neural_class <- factor(neural_class, levels = c(0,1))
+neural_class <- relevel(neural_class, ref = "1")
+
+
+
+train_data$Potability <- relevel(train_data$Potability, ref = "1")
+neural_test$Potability <- relevel(test_data$Potability, ref = "1")
+
+cm <- confusionMatrix(neural_class, neural_test$Potability)
+
+cm
+
+#calculate f1 from precision and recall
+precision <- cm$byClass["Pos Pred Value"]
+recall    <- cm$byClass["Sensitivity"]
+
+
+f1 <- 2 * (precision * recall) / (precision + recall)
+  
+f1
+```
+
+optimal neural net had 3 layers with decay of 0.001.
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Parameters</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>F1 score</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision Tree</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp=0.01</p>
+<p>   </p>
+<p>Minsplit =20,   maxdepth =20</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data </p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.59</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.0856</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.3</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Decision tree   (deep)</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Cp=0.001<br />
+   Minsplit =20, maxdepth =20</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5849</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1326</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.475578</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Random   Forest</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Ntree =   500</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6755</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.2769</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.4863124</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Random Forest</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Ntree= 500</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Clean_train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6489</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1679</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.3653846</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Adaboost</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Mfinal =   100</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6521</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.2436</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.4970588</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Adaboost</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Mfinal = 100 </p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Clean_train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6223</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1561</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4283414</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>SVM</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Kernel Radial</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6816</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.2702</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.436036</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>SVM</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kernel Radial</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_scaled</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6816</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.27</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.436</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>SVM </p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kernel Linear</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5931</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Nan</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>SVM</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kernel tanhdot</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4334</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>-0.1894</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.273794</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>SVM</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Kernel Radial,   cost value = 16</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.65</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.25</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.5</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Logistic Regression</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Glm default</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_scaled</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5849</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1326</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.475784</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Logistic   Regression</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Glm default</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.5931</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1429</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.45667</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Logistic   Regression</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Alpha = 1,   lambda =0.007159 glmnet trained</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.50776</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.162</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4586</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural   network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neuralnet, act.function   = logistic hidden= 1</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4069</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.578426</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural   Network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neuralnet, act.function   = logistic hidden= 1</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_scaled</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6205</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.0981</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.2114165</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neuralnet, act.function   = logistic hidden= 1</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Clean_train_data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.619</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Nan</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neuralnet, act.function   = logistic hidden= 9,1</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_scaled</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.639</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.1603</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.314</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neuralnet, act.function   = logistic hidden= 3,1</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train_scaled   (3 features were removed)</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.4059</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.0661</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.511</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Neural   Network</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Nnet, decay =   0.01, maxit=200, size 9</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Train scaled</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.6368</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.218</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>0.493617</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Neural network</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Nnet,   decay =0.001, iterations =200 , size =3</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_scaled</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6931</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.343</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.5758929</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+One thing to keep in mind is that if a model chose only the majority non potable class, then it would have a 60% accuracy, so checking the f1 score and kappa is crucial for model selection, as it shows that it is actually extrapolating from the data to determine classes.  
+
+Some insights from models:
+
+The worse performing model was a simple decision tree. A deep decision tree performed better overall on the test data than the shallow one. Performance of a deep decision tree matched  logistic regression with accuracies of 0.6 and f1 of \~0.45.  It was notable that switching between scaled and unscaled data did not affect the performance of these models significantly.
+
+Random forest and  performed well on this dataset achieving accuracies above the 0.6 and had f1 scores around 0.5. There was a notable dip in performance of the models when the data had outliers removed. This may be due to the fact that the outliers may determine the potability of the water. Especially the values significantly above the mean.  When looking at the  features potabile water should have a pH from 6.5 to 8.5, total disloved solids less than 1000mg/L, less than 4 ppm for chloramines, \<400uS/cm for conductivity,\< 2mg/L for total organic carbon, \<80 ppm for trihalomethanes, \<5 NTU for turbidity.
+
+SVM required careful selection of the kernel and by optimizing the cost value the f1 score improved.  The radial kernel was shown to be the best when compared to linear and hyperbolic tangent kernel. 
+
+Models
+
+Best Methods
+
+<table>
+<tbody>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Model</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Parameters</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Data</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Accuracy</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>Kappa</p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p>F1 score</p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Neural network</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Nnet,   decay =0.001, iterations =200 , size =3</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_scaled</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6931</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.343</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.5758929</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Random   Forest</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Ntree =   500</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6755</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.2769</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.4863124</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>SVM</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Kernel Radial,   cost value = 16</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.65</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.25</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.5</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p>  </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Adaboost</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Mfinal =   100</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>Train_data</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.6521</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.2436</strong></p>
+<p>   </p></td>
+<td><p>   </p></td>
+<td><p>   </p>
+<p><strong>0.4970588</strong></p>
+<p>   </p></td>
+<td><p>  </p></td>
+</tr>
+<tr>
+<td><p> </p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+After testing multiple models, the best performing models had accuracies greater than 0.65, f1 scores at or above 0.5, and kappas above 0.2.  The best model had 1 layer of 3 nodes,  from nnet, with a decay of 0.001.  Random forest, SVM with a tuned cost value and adaboost all had similar performances.
+
+Ultimately all the features that determine waters potability is not within this dataset.  Building a model with limited data has it’s challenges however some predictions could be made using a neural network, showcasing that machine learning models are useful for datasets that are limited.
+
+This
+may help with quality control of water and may help raise flags that may help
+save lives.   
+
+reference for features:
+
+"
+
+The water_potability.csv file contains water quality metrics for 3276 different water bodies.
+
+### **1. pH value:**
+
+`PH is an important parameter in evaluating the acid–base balance of water. It is also the indicator of acidic or alkaline condition of water status. WHO has recommended maximum permissible limit of pH from 6.5 to 8.5. The current investigation ranges were 6.52–6.83 which are in the range of WHO standards.`
+
+### **2. Hardness:**
+
+`Hardness is mainly caused by calcium and magnesium salts. These salts are dissolved from geologic deposits through which water travels. The length of time water is in contact with hardness producing material helps determine how much hardness there is in raw water. Hardness was originally defined as the capacity of water to precipitate soap caused by Calcium and Magnesium.`
+
+### **3. Solids (Total dissolved solids - TDS):**
+
+`Water has the ability to dissolve a wide range of inorganic and some organic minerals or salts such as potassium, calcium, sodium, bicarbonates, chlorides, magnesium, sulfates etc. These minerals produced un-wanted taste and diluted color in appearance of water. This is the important parameter for the use of water. The water with high TDS value indicates that water is highly mineralized. Desirable limit for TDS is 500 mg/l and maximum limit is 1000 mg/l which prescribed for drinking purpose.`
+
+### **4. Chloramines:**
+
+`Chlorine and chloramine are the major disinfectants used in public water systems. Chloramines are most commonly formed when ammonia is added to chlorine to treat drinking water. Chlorine levels up to 4 milligrams per liter (mg/L or 4 parts per million (ppm)) are considered safe in drinking water.`
+
+### **5. Sulfate:**
+
+`Sulfates are naturally occurring substances that are found in minerals, soil, and rocks. They are present in ambient air, groundwater, plants, and food. The principal commercial use of sulfate is in the chemical industry. Sulfate concentration in seawater is about 2,700 milligrams per liter (mg/L). It ranges from 3 to 30 mg/L in most freshwater supplies, although much higher concentrations (1000 mg/L) are found in some geographic locations.`
+
+### **6. Conductivity:**
+
+`Pure water is not a good conductor of electric current rather’s a good insulator. Increase in ions concentration enhances the electrical conductivity of water. Generally, the amount of dissolved solids in water determines the electrical conductivity. Electrical conductivity (EC) actually measures the ionic process of a solution that enables it to transmit current. According to WHO standards, EC value should not exceeded 400 μS/cm.`
+
+### **7. Organic_carbon:**
+
+`Total Organic Carbon (TOC) in source waters comes from decaying natural organic matter (NOM) as well as synthetic sources. TOC is a measure of the total amount of carbon in organic compounds in pure water. According to US EPA < 2 mg/L as TOC in treated / drinking water, and < 4 mg/Lit in source water which is use for treatment.`
+
+### **8. Trihalomethanes:**
+
+`THMs are chemicals which may be found in water treated with chlorine. The concentration of THMs in drinking water varies according to the level of organic material in the water, the amount of chlorine required to treat the water, and the temperature of the water that is being treated. THM levels up to 80 ppm is considered safe in drinking water.`
+
+### **9. Turbidity:**
+
+`The turbidity of water depends on the quantity of solid matter present in the suspended state. It is a measure of light emitting properties of water and the test is used to indicate the quality of waste discharge with respect to colloidal matter. The mean turbidity value obtained for Wondo Genet Campus (0.98 NTU) is lower than the WHO recommended value of 5.00 NTU.`
+
+### **10. Potability:**
+
+`Indicates if water is safe for human consumption where 1 means Potable and 0 means Not potable.`
+
+"
+
+\-[Water Quality](https://www.kaggle.com/datasets/adityakadiwal/water-potability)
